@@ -8,51 +8,138 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.markdown("""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;600;700&display=swap');
-html, body, [class*="css"] { font-family: 'Barlow', sans-serif; }
-.stButton > button {
-    background:#D4A017 !important; color:#050505 !important;
-    font-weight:700 !important; border:none !important; border-radius:6px !important;
-}
-.stButton > button:hover { background:#FFD040 !important; }
-[data-testid="stSidebar"] { background:#050505 !important; }
-</style>
-""", unsafe_allow_html=True)
-
-TH = "background:#D4A017;color:#050505;padding:10px 12px;text-align:center;font-size:0.8rem;"
-TD = "padding:9px 12px;border-bottom:1px solid #1A1A1A;text-align:center;font-size:0.9rem;"
-
-def badge(estado):
-    if estado == "Finalizado":
-        return '<span style="background:#1A6020;color:#90FF90;padding:3px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;">Finalizado</span>'
-    elif estado == "Pendiente":
-        return '<span style="background:#8A6000;color:#FFE060;padding:3px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;">Pendiente</span>'
-    return '<span style="background:#7A1010;color:#FFB0B0;padding:3px 10px;border-radius:12px;font-size:0.75rem;font-weight:600;">Aplazado</span>'
-
-def partido_html(enf, hora, estado, g1=0, g2=0):
-    marcador = f'<span style="background:#D4A017;color:#050505;padding:4px 12px;border-radius:4px;font-weight:700;margin-right:8px;">{g1} — {g2}</span>' if estado == "Finalizado" else ""
-    return f"""<div style="background:#141414;border-left:3px solid #D4A017;border-radius:4px;
-         padding:10px 16px;margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">
-      <div>
-        <div style="font-weight:600;color:#F5F0E8;">{enf}</div>
-        <div style="color:#5A5550;font-size:0.8rem;">{hora} hrs</div>
-      </div>
-      <div style="display:flex;align-items:center;gap:8px;">{marcador}{badge(estado)}</div>
-    </div>"""
-
+# ── Session state ──────────────────────────────────────────────────────────────
 if "datos" not in st.session_state:
     st.session_state.datos = cargar_datos()
 if "rol" not in st.session_state:
     st.session_state.rol = "invitado"
 if "usuario" not in st.session_state:
     st.session_state.usuario = None
+if "tema" not in st.session_state:
+    st.session_state.tema = "oscuro"
 
 datos = st.session_state.datos
 
+# ── Paletas de tema ────────────────────────────────────────────────────────────
+TEMAS = {
+    "oscuro": {
+        "acento":      "#D4A017",
+        "acento_hi":   "#FFD040",
+        "bg":          "#0A0A0A",
+        "bg_card":     "#141414",
+        "bg_alt":      "#101010",
+        "bg_section":  "#1A1200",
+        "text":        "#F5F0E8",
+        "text2":       "#9A9080",
+        "text3":       "#5A5550",
+        "sidebar_bg":  "#050505",
+        "btn_fg":      "#050505",
+        "hero_grad":   "linear-gradient(135deg,#0A0A0A,#1A1200)",
+        "icono_tema":  "🟢",
+        "label_tema":  "Tema Verde",
+    },
+    "verde": {
+        "acento":      "#4CAF28",
+        "acento_hi":   "#7FD44A",
+        "bg":          "#0D1F0F",
+        "bg_card":     "#122516",
+        "bg_alt":      "#0F1E12",
+        "bg_section":  "#0A1A08",
+        "text":        "#E8F5E0",
+        "text2":       "#8AB880",
+        "text3":       "#507848",
+        "sidebar_bg":  "#071208",
+        "btn_fg":      "#071208",
+        "hero_grad":   "linear-gradient(135deg,#071208,#0D2010)",
+        "icono_tema":  "🌙",
+        "label_tema":  "Tema Oscuro",
+    },
+}
+
+def T():
+    return TEMAS[st.session_state.tema]
+
+# ── CSS dinámico ───────────────────────────────────────────────────────────────
+def inyectar_css():
+    t = T()
+    st.markdown(f"""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;600;700&display=swap');
+html, body, [class*="css"] {{
+    font-family: 'Barlow', sans-serif;
+    background-color: {t['bg']} !important;
+    color: {t['text']} !important;
+}}
+[data-testid="stAppViewContainer"] {{ background-color: {t['bg']} !important; }}
+[data-testid="stSidebar"] {{ background-color: {t['sidebar_bg']} !important; border-right: 1px solid {t['bg_card']}; }}
+[data-testid="stSidebar"] * {{ color: {t['text2']} !important; }}
+[data-testid="stSidebar"] h2 {{ color: {t['acento']} !important; font-size:1.3rem; }}
+.stTabs [data-baseweb="tab-list"] {{ background: {t['bg_card']}; border-radius: 8px; padding: 4px; gap: 4px; }}
+.stTabs [data-baseweb="tab"] {{ background: transparent; color: {t['text2']} !important; border-radius: 6px; padding: 8px 16px; font-weight: 600; }}
+.stTabs [aria-selected="true"] {{ background: {t['acento']} !important; color: {t['btn_fg']} !important; }}
+.stExpander {{ background: {t['bg_card']} !important; border: 1px solid {t['bg_alt']} !important; border-radius: 8px !important; }}
+.stExpander summary {{ color: {t['acento']} !important; font-weight: 700 !important; }}
+.stSelectbox > div > div, .stTextInput > div > div > input, .stNumberInput > div > div > input {{
+    background: {t['bg_alt']} !important;
+    color: {t['text']} !important;
+    border-color: {t['bg_card']} !important;
+    border-radius: 6px !important;
+}}
+.stButton > button {{
+    background: {t['acento']} !important;
+    color: {t['btn_fg']} !important;
+    font-weight: 700 !important;
+    border: none !important;
+    border-radius: 6px !important;
+    padding: 8px 20px !important;
+}}
+.stButton > button:hover {{ background: {t['acento_hi']} !important; }}
+.stRadio > div > label > div {{ color: {t['text2']} !important; }}
+.stCheckbox > label > div {{ color: {t['text']} !important; }}
+div[data-testid="stMarkdownContainer"] p {{ color: {t['text']} !important; }}
+.stInfo {{ background: {t['bg_card']} !important; border-left: 3px solid {t['acento']} !important; color: {t['text2']} !important; }}
+</style>
+""", unsafe_allow_html=True)
+
+inyectar_css()
+t = T()
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+def badge_html(estado):
+    if estado == "Finalizado":
+        return '<span style="background:#1A6020;color:#90FF90;padding:3px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;white-space:nowrap;">✓ Finalizado</span>'
+    if estado == "Pendiente":
+        return f'<span style="background:{t["bg_section"]};color:{t["acento"]};padding:3px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;border:1px solid {t["acento"]};white-space:nowrap;">⏳ Pendiente</span>'
+    return '<span style="background:#3A0A0A;color:#FFB0B0;padding:3px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;white-space:nowrap;">✗ Aplazado</span>'
+
+def partido_card(enf, hora, estado, g1=0, g2=0):
+    marcador = f'<div style="background:{t["acento"]};color:{t["btn_fg"]};padding:6px 16px;border-radius:6px;font-weight:700;font-size:1.1rem;font-family:monospace;">{g1} — {g2}</div>' if estado == "Finalizado" else ""
+    return f"""
+<div style="background:{t['bg_card']};border-left:4px solid {t['acento']};border-radius:0 8px 8px 0;
+     padding:14px 18px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;
+     box-shadow:0 1px 3px rgba(0,0,0,0.4);">
+  <div>
+    <div style="font-weight:700;color:{t['text']};font-size:1rem;margin-bottom:3px;">{enf}</div>
+    <div style="color:{t['text3']};font-size:0.8rem;">🕐 {hora} hrs</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;">{marcador}{badge_html(estado)}</div>
+</div>"""
+
+def seccion_titulo(txt):
+    return f'<div style="font-size:0.7rem;font-weight:700;letter-spacing:2px;color:{t["text3"]};text-transform:uppercase;margin:16px 0 8px;padding-left:4px;">{txt}</div>'
+
+# ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## ⚽ ITC Deportes")
+    st.markdown(f"## ⚽ ITC Deportes")
+    st.markdown("---")
+
+    # Toggle de tema
+    tema_btn = T()["label_tema"]
+    tema_ico = T()["icono_tema"]
+    if st.button(f"{tema_ico} {tema_btn}", key="btn_tema"):
+        st.session_state.tema = "verde" if st.session_state.tema == "oscuro" else "oscuro"
+        st.rerun()
+
     st.markdown("---")
 
     if st.session_state.rol == "invitado":
@@ -78,8 +165,7 @@ with st.sidebar:
             st.rerun()
 
     st.markdown("---")
-    torneo = st.radio("Selecciona torneo",
-                      ["🏆 Intercolegiados", "🎯 Intercursos"], key="torneo_sel")
+    torneo = st.radio("Torneo", ["🏆 Intercolegiados", "🎯 Intercursos"], key="torneo_sel")
 
     if torneo == "🎯 Intercursos":
         st.markdown("**Categoría**")
@@ -88,20 +174,22 @@ with st.sidebar:
         st.caption({"PRIMERA":"Grados 6° y 7°","SEGUNDA":"Grados 8° y 9°","TERCERA":"Grados 10° y 11°"}.get(categoria,""))
         st.markdown("**Deporte**")
         dep_opts = list(datos["equipos_local"].get(categoria, {}).keys()) or list(DEPORTES)
-        deporte_raw = st.radio("dep",
-                               [f"{ICONOS_DEP.get(d,'🏅')} {d}" for d in dep_opts],
-                               label_visibility="collapsed", key="dep_sel")
-        deporte = deporte_raw.split(" ", 1)[1] if " " in deporte_raw else deporte_raw
+        dep_raw  = st.radio("dep", [f"{ICONOS_DEP.get(d,'🏅')} {d}" for d in dep_opts],
+                             label_visibility="collapsed", key="dep_sel")
+        deporte = dep_raw.split(" ", 1)[1] if " " in dep_raw else dep_raw
     else:
         categoria = None
         deporte   = None
 
-st.markdown("""
-<div style="background:linear-gradient(135deg,#0A0A0A,#1A1200);border-left:6px solid #D4A017;
-     padding:24px 32px;margin-bottom:24px;border-radius:0 8px 8px 0;">
-  <h1 style="font-family:'Bebas Neue',Impact,sans-serif;font-size:3rem;color:#D4A017;
-             margin:0;letter-spacing:4px;">ITC DEPORTES</h1>
-  <p style="color:#9A9080;margin:4px 0 0;">Sistema de gestión deportiva institucional · 2026</p>
+# ── Hero ───────────────────────────────────────────────────────────────────────
+st.markdown(f"""
+<div style="background:{t['hero_grad']};border-left:6px solid {t['acento']};
+     padding:28px 36px;margin-bottom:28px;border-radius:0 12px 12px 0;">
+  <div style="font-family:'Bebas Neue',Impact,sans-serif;font-size:3.2rem;
+              color:{t['acento']};letter-spacing:5px;line-height:1;">ITC DEPORTES</div>
+  <div style="color:{t['text2']};margin-top:6px;font-size:0.95rem;letter-spacing:1px;">
+    Sistema de gestión deportiva institucional · 2026
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -109,26 +197,28 @@ st.markdown("""
 #  INTERCOLEGIADOS
 # ═══════════════════════════════════════════════════════════════════════════════
 if torneo == "🏆 Intercolegiados":
-    st.markdown("## 🏆 Intercolegiados ITC")
+    st.markdown(f"<h2 style='color:{t['acento']};'>🏆 Intercolegiados ITC</h2>", unsafe_allow_html=True)
     tabs = st.tabs([f"{ICONOS_DEP[d]} {d}" for d in DEPORTES])
 
     for i, dep in enumerate(DEPORTES):
         with tabs[i]:
             c1, c2 = st.columns(2)
             with c1:
-                st.markdown("### 🏅 Logros")
+                st.markdown(seccion_titulo("Logros destacados"), unsafe_allow_html=True)
                 logros_dep = [l for l in datos["logros"] if dep in l[1]]
                 if logros_dep:
                     for anio, desc in logros_dep:
-                        st.markdown(f"""<div style="display:flex;align-items:center;gap:12px;background:#141414;
-                             border-left:3px solid #D4A017;padding:10px 16px;
-                             margin-bottom:6px;border-radius:0 6px 6px 0;">
-                          <span style="background:#D4A017;color:#050505;padding:4px 10px;
-                                border-radius:4px;font-weight:700;">{anio}</span>
-                          <span style="color:#F5F0E8;">{desc}</span>
+                        st.markdown(f"""
+                        <div style="display:flex;align-items:center;gap:12px;background:{t['bg_card']};
+                             border-left:3px solid {t['acento']};padding:12px 16px;
+                             margin-bottom:6px;border-radius:0 8px 8px 0;">
+                          <span style="background:{t['acento']};color:{t['btn_fg']};padding:4px 12px;
+                                border-radius:20px;font-weight:700;font-size:0.85rem;white-space:nowrap;">{anio}</span>
+                          <span style="color:{t['text']};font-size:0.95rem;">{desc}</span>
                         </div>""", unsafe_allow_html=True)
                 else:
                     st.info("Sin logros registrados.")
+
                 if st.session_state.rol == "profesor":
                     with st.expander("➕ Añadir logro"):
                         anio_n = st.text_input("Año", key=f"logro_anio_{dep}")
@@ -140,14 +230,15 @@ if torneo == "🏆 Intercolegiados":
                                 st.success("✅ Logro añadido.")
 
             with c2:
-                st.markdown("### 📅 Partidos")
+                st.markdown(seccion_titulo("Partidos programados"), unsafe_allow_html=True)
                 partidos_dep = datos["partidos"].get(dep, [])
                 if partidos_dep:
                     for p in partidos_dep:
                         fecha, enf, estado = p[0], p[1], p[2]
-                        st.markdown(partido_html(enf, fecha, estado), unsafe_allow_html=True)
+                        st.markdown(partido_card(enf, fecha, estado), unsafe_allow_html=True)
                 else:
                     st.info("Sin partidos programados.")
+
                 if st.session_state.rol == "profesor":
                     with st.expander("➕ Añadir partido"):
                         fecha_p  = st.text_input("Fecha (AAAA-MM-DD)", key=f"p_fecha_{dep}")
@@ -163,8 +254,10 @@ if torneo == "🏆 Intercolegiados":
 #  INTERCURSOS
 # ═══════════════════════════════════════════════════════════════════════════════
 else:
-    st.markdown(f"## 🎯 Intercursos — Categoría {categoria}")
+    st.markdown(f"<h2 style='color:{t['acento']};'>🎯 Intercursos — Categoría {categoria}</h2>", unsafe_allow_html=True)
+    st.markdown(f"<p style='color:{t['text3']};margin-top:-12px;'>{'Grados 6° y 7°' if categoria=='PRIMERA' else 'Grados 8° y 9°' if categoria=='SEGUNDA' else 'Grados 10° y 11°'}</p>", unsafe_allow_html=True)
 
+    # ── Panel profesor ─────────────────────────────────────────────────────────
     if st.session_state.rol == "profesor":
         with st.expander("⚙️ Panel de Gestión — Profesor", expanded=False):
             ptabs = st.tabs(["➕ Equipo", "👤 Jugador", "✏️ Partido", "🎲 Sorteo"])
@@ -226,7 +319,7 @@ else:
                     dep_ap = st.selectbox("Deporte", deps_ap, key="ap_dep")
                     pl_dep = datos["partidos_local"].get(categoria, {}).get(dep_ap, [])
                     if pl_dep:
-                        opts_p = [f"[{i+1}] {p[0][:10]} | {p[1][:45]} | {p[2]}" for i, p in enumerate(pl_dep)]
+                        opts_p = [f"[{i+1}] {p[0][:10]} | {p[1][:50]} | {p[2]}" for i, p in enumerate(pl_dep)]
                         sel_p  = st.selectbox("Partido", opts_p, key="ap_sel")
                         idx_p  = opts_p.index(sel_p)
                         p_sel  = pl_dep[idx_p]
@@ -241,8 +334,8 @@ else:
                             except Exception:
                                 eq1_n, eq2_n = "Equipo 1", "Equipo 2"
                             col1, col2 = st.columns(2)
-                            g1 = col1.number_input(f"Goles {eq1_n[:18]}", min_value=0, value=int(g1), key="ap_g1")
-                            g2 = col2.number_input(f"Goles {eq2_n[:18]}", min_value=0, value=int(g2), key="ap_g2")
+                            g1 = col1.number_input(f"⚽ {eq1_n[:20]}", min_value=0, value=int(g1), key="ap_g1")
+                            g2 = col2.number_input(f"⚽ {eq2_n[:20]}", min_value=0, value=int(g2), key="ap_g2")
                         if st.button("Guardar cambios", key="ap_btn"):
                             datos["partidos_local"][categoria][dep_ap][idx_p] = [
                                 p_sel[0], p_sel[1], nuevo_estado, int(g1), int(g2)
@@ -255,7 +348,7 @@ else:
                     st.info("No hay partidos registrados.")
 
             with ptabs[3]:
-                st.markdown("Genera el fixture Round-Robin de **7 jornadas**.")
+                st.markdown("Genera el fixture **Round-Robin de 7 jornadas**. Un equipo por curso.")
                 deps_sort = list(datos["equipos_local"].get(categoria, {}).keys())
                 dep_sort  = st.selectbox("Deporte a sortear", deps_sort, key="sort_dep")
                 key_s     = f"{categoria}_{dep_sort}"
@@ -263,11 +356,11 @@ else:
                 if ya_hecho:
                     si = datos["sorteo_realizado"][key_s]
                     st.info(f"✅ Sorteo existente: {si['fecha'][:10]}  •  {si['n_equipos']} equipos")
-                    confirmar = st.checkbox("Quiero re-sortear", key="sort_confirm")
+                    confirmar = st.checkbox("Quiero re-sortear (reemplaza el fixture)", key="sort_confirm")
                 else:
                     confirmar = True
                 if confirmar:
-                    if st.button(f"🎲 Sortear — {dep_sort}", key="sort_btn"):
+                    if st.button(f"🎲 Realizar sorteo — {dep_sort}", key="sort_btn"):
                         datos_new, fixture, error = realizar_sorteo(datos, categoria, dep_sort)
                         if error:
                             st.error(error)
@@ -278,93 +371,124 @@ else:
                             n = datos_new["sorteo_realizado"][key_s]["n_equipos"]
                             st.success(f"✅ ¡Sorteo realizado! {n} equipos · 7 jornadas. Ve a la pestaña Partidos.")
 
-    st.markdown('<hr style="height:2px;background:linear-gradient(90deg,#D4A017,transparent);border:none;margin:16px 0;">', unsafe_allow_html=True)
+    st.markdown(f'<hr style="height:2px;background:linear-gradient(90deg,{t["acento"]},transparent);border:none;margin:16px 0;">', unsafe_allow_html=True)
 
+    # ── Vistas principales ─────────────────────────────────────────────────────
     vista = st.tabs(["📊 Tabla de Posiciones", "📅 Partidos", "👥 Equipos"])
 
+    # ── TABLA ──────────────────────────────────────────────────────────────────
     with vista[0]:
-        st.markdown(f"### 📊 Tabla — {deporte} · {categoria}")
+        st.markdown(f"<h3 style='color:{t['text']};'>📊 {deporte} · {categoria}</h3>", unsafe_allow_html=True)
         tabla = calcular_tabla(datos, categoria, deporte)
         if tabla:
             MEDALLAS = {1:"🥇", 2:"🥈", 3:"🥉"}
+            TH = f"background:{t['acento']};color:{t['btn_fg']};padding:11px 14px;text-align:center;font-size:0.78rem;font-weight:700;letter-spacing:1px;"
+            TD = f"padding:11px 14px;border-bottom:1px solid {t['bg_alt']};text-align:center;font-size:0.9rem;"
             filas = ""
             for r in tabla:
                 pos    = r["#"]
                 med    = MEDALLAS.get(pos, str(pos))
                 dg     = f"+{r['DG']}" if r['DG']>0 else str(r['DG'])
-                dg_c   = '#90FF90' if r['DG']>0 else '#FFB0B0' if r['DG']<0 else '#9A9080'
-                row_bg = '#141414' if pos%2==1 else '#101010'
-                pos_bg = '#D4A017' if pos==1 else '#606060' if pos==2 else '#8B5C1A' if pos==3 else row_bg
-                pos_fg = '#050505' if pos<=2 else '#F5F0E8' if pos==3 else '#9A9080'
-                eq_c   = '#D4A017' if pos==1 else '#F5F0E8' if pos<=3 else '#C0B8A8'
-                pts_c  = '#D4A017' if pos<=3 else '#F5F0E8'
+                dg_c   = '#90FF90' if r['DG']>0 else '#FFB0B0' if r['DG']<0 else t['text3']
+                row_bg = t['bg_card'] if pos%2==1 else t['bg_alt']
+                pos_bg = t['acento'] if pos==1 else '#606060' if pos==2 else '#8B5C1A' if pos==3 else row_bg
+                pos_fg = t['btn_fg'] if pos<=2 else '#F5F0E8' if pos==3 else t['text3']
+                eq_c   = t['acento'] if pos==1 else t['text'] if pos<=3 else t['text2']
+                pts_c  = t['acento'] if pos<=3 else t['text2']
                 fw     = '700' if pos<=3 else '400'
                 filas += f"""<tr>
-                  <td style="{TD}background:{pos_bg};color:{pos_fg};font-weight:700;">{med}</td>
-                  <td style="{TD}background:{row_bg};text-align:left;padding-left:14px;font-weight:{fw};color:{eq_c};">{r['Equipo']}</td>
-                  <td style="{TD}background:{row_bg};color:#5A5550;">{r['Curso']}</td>
+                  <td style="{TD}background:{pos_bg};color:{pos_fg};font-weight:700;font-size:1rem;">{med}</td>
+                  <td style="{TD}background:{row_bg};text-align:left;padding-left:16px;font-weight:{fw};color:{eq_c};font-size:0.95rem;">{r['Equipo']}</td>
+                  <td style="{TD}background:{row_bg};color:{t['text3']};font-size:0.8rem;">{r['Curso']}</td>
                   <td style="{TD}background:{row_bg};">{r['PJ']}</td>
-                  <td style="{TD}background:{row_bg};color:#90FF90;">{r['PG']}</td>
+                  <td style="{TD}background:{row_bg};color:#90FF90;font-weight:600;">{r['PG']}</td>
                   <td style="{TD}background:{row_bg};color:#FFE060;">{r['PE']}</td>
                   <td style="{TD}background:{row_bg};color:#FFB0B0;">{r['PP']}</td>
-                  <td style="{TD}background:{row_bg};">{r['GF']}</td>
-                  <td style="{TD}background:{row_bg};">{r['GC']}</td>
+                  <td style="{TD}background:{row_bg};color:{t['text2']};">{r['GF']}</td>
+                  <td style="{TD}background:{row_bg};color:{t['text2']};">{r['GC']}</td>
                   <td style="{TD}background:{row_bg};color:{dg_c};font-weight:600;">{dg}</td>
-                  <td style="{TD}background:{row_bg};color:{pts_c};font-weight:700;">{r['Pts']}</td>
+                  <td style="{TD}background:{row_bg};color:{pts_c};font-weight:700;font-size:1rem;">{r['Pts']}</td>
                 </tr>"""
             st.markdown(f"""
-            <table style="width:100%;border-collapse:collapse;margin-top:8px;">
+            <div style="border-radius:10px;overflow:hidden;border:1px solid {t['bg_alt']};margin-top:8px;">
+            <table style="width:100%;border-collapse:collapse;">
               <thead><tr>
-                <th style="{TH}">#</th>
-                <th style="{TH}text-align:left;padding-left:14px;">Equipo</th>
+                <th style="{TH}width:48px;">#</th>
+                <th style="{TH}text-align:left;padding-left:16px;">Equipo</th>
                 <th style="{TH}">Curso</th>
                 <th style="{TH}">PJ</th><th style="{TH}">PG</th><th style="{TH}">PE</th>
                 <th style="{TH}">PP</th><th style="{TH}">GF</th><th style="{TH}">GC</th>
                 <th style="{TH}">DG</th><th style="{TH}">Pts</th>
               </tr></thead><tbody>{filas}</tbody>
-            </table>
-            <br><small style="color:#5A5550;">⚽ Victoria = 3 pts &nbsp;|&nbsp; 🤝 Empate = 1 pt &nbsp;|&nbsp; ❌ Derrota = 0 pts</small>
+            </table></div>
+            <div style="margin-top:10px;color:{t['text3']};font-size:0.8rem;">
+              ⚽ Victoria = 3 pts &nbsp;&nbsp; 🤝 Empate = 1 pt &nbsp;&nbsp; ❌ Derrota = 0 pts
+            </div>
             """, unsafe_allow_html=True)
         else:
             st.info("Sin equipos registrados para esta categoría y deporte.")
 
+    # ── PARTIDOS ───────────────────────────────────────────────────────────────
     with vista[1]:
-        st.markdown(f"### 📅 Partidos — {deporte} · {categoria}")
+        st.markdown(f"<h3 style='color:{t['text']};'>📅 {deporte} · {categoria}</h3>", unsafe_allow_html=True)
         partidos = datos["partidos_local"].get(categoria, {}).get(deporte, [])
         if partidos:
             fechas_dict = {}
             for p in partidos:
                 fechas_dict.setdefault(p[0][:10], []).append(p)
             for j_idx, fch in enumerate(sorted(fechas_dict.keys())):
-                st.markdown(
-                    f'<div style="background:#1A1200;border-left:4px solid #D4A017;padding:8px 16px;'
-                    f'margin-top:12px;border-radius:0 4px 4px 0;font-weight:600;color:#D4A017;">'
-                    f'JORNADA {j_idx+1} &nbsp;·&nbsp; 📅 {fch}</div>',
-                    unsafe_allow_html=True)
+                st.markdown(f"""
+                <div style="background:{t['bg_section']};border-left:4px solid {t['acento']};
+                     padding:8px 16px;margin:16px 0 6px;border-radius:0 6px 6px 0;
+                     display:flex;align-items:center;gap:12px;">
+                  <span style="background:{t['acento']};color:{t['btn_fg']};padding:2px 10px;
+                        border-radius:20px;font-size:0.75rem;font-weight:700;">J{j_idx+1}</span>
+                  <span style="color:{t['acento']};font-weight:700;font-size:0.9rem;">JORNADA {j_idx+1}</span>
+                  <span style="color:{t['text3']};font-size:0.85rem;">📅 {fch}</span>
+                </div>""", unsafe_allow_html=True)
                 for fecha, enf, estado, g1, g2 in fechas_dict[fch]:
-                    st.markdown(partido_html(enf, fecha[11:16], estado, g1, g2), unsafe_allow_html=True)
+                    st.markdown(partido_card(enf, fecha[11:16], estado, g1, g2), unsafe_allow_html=True)
         else:
             st.info("Sin partidos programados. Usa el Panel de Gestión → Sorteo para generar el fixture.")
 
+    # ── EQUIPOS ────────────────────────────────────────────────────────────────
     with vista[2]:
-        st.markdown(f"### 👥 Equipos — {deporte} · {categoria}")
+        st.markdown(f"<h3 style='color:{t['text']};'>👥 {deporte} · {categoria}</h3>", unsafe_allow_html=True)
         equipos_dep = datos["equipos_local"].get(categoria, {}).get(deporte, {})
         if equipos_dep:
+            cols = st.columns(2)
+            idx_col = 0
             for cur, eqs in equipos_dep.items():
                 if not eqs:
                     continue
-                with st.expander(f"📚 Curso {cur}  —  {len(eqs)} equipo{'s' if len(eqs)!=1 else ''}", expanded=True):
+                with cols[idx_col % 2]:
+                    jugs_total = sum(
+                        len(datos["jugadores_local"].get(categoria,{}).get(deporte,{}).get(cur,{}).get(eq,[]))
+                        for eq in eqs
+                    )
+                    st.markdown(f"""
+                    <div style="background:{t['bg_card']};border:1px solid {t['bg_alt']};
+                         border-top:3px solid {t['acento']};border-radius:8px;
+                         padding:14px 16px;margin-bottom:12px;">
+                      <div style="font-size:0.7rem;font-weight:700;letter-spacing:2px;
+                                  color:{t['text3']};margin-bottom:10px;">CURSO {cur}</div>
+                    """, unsafe_allow_html=True)
                     for eq in eqs:
-                        jugs = (datos["jugadores_local"]
-                                .get(categoria, {}).get(deporte, {})
-                                .get(cur, {}).get(eq, []))
+                        jugs = (datos["jugadores_local"].get(categoria,{}).get(deporte,{})
+                                .get(cur,{}).get(eq,[]))
                         nombres = ', '.join(j["nombre"] for j in jugs) if jugs else ""
-                        st.markdown(f"""<div style="background:#141414;border-left:3px solid #D4A017;
-                             padding:10px 16px;margin-bottom:6px;border-radius:0 6px 6px 0;">
-                          <span style="font-weight:700;color:#F5F0E8;">⚽ {eq}</span>
-                          <span style="background:#D4A017;color:#050505;padding:2px 8px;
-                                border-radius:10px;font-size:0.75rem;font-weight:700;margin-left:10px;">{len(jugs)} jug.</span>
-                          {'<br><small style="color:#5A5550;margin-top:4px;display:block;">' + nombres + '</small>' if nombres else ''}
-                        </div>""", unsafe_allow_html=True)
+                        st.markdown(f"""
+                      <div style="display:flex;align-items:flex-start;gap:10px;
+                                  padding:8px 0;border-bottom:1px solid {t['bg_alt']};">
+                        <span style="font-size:1.1rem;">⚽</span>
+                        <div style="flex:1;">
+                          <span style="font-weight:700;color:{t['text']};font-size:0.95rem;">{eq}</span>
+                          <span style="background:{t['acento']};color:{t['btn_fg']};padding:1px 8px;
+                                border-radius:20px;font-size:0.7rem;font-weight:700;margin-left:8px;">{len(jugs)} jug.</span>
+                          {'<div style="color:' + t['text3'] + ';font-size:0.78rem;margin-top:3px;">' + nombres + '</div>' if nombres else ''}
+                        </div>
+                      </div>""", unsafe_allow_html=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+                idx_col += 1
         else:
             st.info("Sin equipos registrados. Añade equipos desde el Panel de Gestión.")
