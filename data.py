@@ -247,27 +247,35 @@ def realizar_sorteo(datos, categoria, deporte):
 
 # ── Tabla de posiciones ───────────────────────────────────────────────────────
 
-def _parsear_lado(lado):
-    """Extrae (nombre, curso) de 'Nombre Equipo (1001)'. Curso = ultimo parentesis."""
-    lado = lado.strip()
-    ultimo_par = lado.rfind("(")
-    if ultimo_par != -1 and lado.endswith(")"):
-        nombre = lado[:ultimo_par].strip()
-        curso  = lado[ultimo_par+1:-1].strip()
-    else:
-        nombre = lado
-        curso  = "?"
-    return nombre, curso
+def _limpiar_nombre(texto):
+    """Extrae (nombre, curso) — soporta formato normal y formato tupla Python."""
+    texto = str(texto).strip()
+    # Formato tuple/list de Python: ('x', 'y') o ["x","y"]
+    if len(texto) > 4 and texto[0] in "([" and texto[-1] in ")]":
+        inner = texto[1:-1]
+        partes = inner.split(",", 1)
+        if len(partes) == 2:
+            n = partes[0].strip().strip("\'\"").strip()
+            c = partes[1].strip().strip("\'\"").strip()
+            if n:
+                return n, c
+    # Formato normal: "Nombre Equipo (curso)"
+    ultimo_par = texto.rfind("(")
+    if ultimo_par != -1 and texto.endswith(")"):
+        return texto[:ultimo_par].strip(), texto[ultimo_par+1:-1].strip()
+    return texto, "?"
 
 def _parsear_enf(enf):
     """Parsea 'Equipo A (c1) vs Equipo B (c2)' de forma robusta."""
     if not isinstance(enf, str):
         return None
+    # Limpiar si toda la cadena es una tupla Python
+    enf = enf.strip()
     idx = enf.find(" vs ")
     if idx == -1:
         return None
-    n1, c1 = _parsear_lado(enf[:idx])
-    n2, c2 = _parsear_lado(enf[idx+4:])
+    n1, c1 = _limpiar_nombre(enf[:idx])
+    n2, c2 = _limpiar_nombre(enf[idx+4:])
     if not n1 or not n2:
         return None
     return n1, c1, n2, c2
