@@ -157,14 +157,21 @@ def generar_round_robin(equipos):
     return fechas_7
 
 def realizar_sorteo(datos, categoria, deporte):
+    """
+    Recoge TODOS los equipos registrados en la categoria/deporte.
+    Si un curso no tiene equipo registrado, usa el equipo predefinido.
+    """
     equipos_con_curso = []
     cursos_cat = CATEGORIAS_LOCAL.get(categoria, [])
 
     for cur in cursos_cat:
         eqs_cur = datos["equipos_local"].get(categoria, {}).get(deporte, {}).get(cur, [])
         if eqs_cur:
-            equipos_con_curso.append((eqs_cur[0], cur))
+            # Registrar TODOS los equipos del curso (no solo el primero)
+            for eq in eqs_cur:
+                equipos_con_curso.append((eq, cur))
         else:
+            # Usar equipo predefinido si no hay ninguno registrado
             nombre_pred = EQUIPOS_POR_CURSO.get(cur)
             if nombre_pred:
                 if categoria not in datos["equipos_local"]:
@@ -240,6 +247,31 @@ def realizar_sorteo(datos, categoria, deporte):
 
 # ── Tabla de posiciones ───────────────────────────────────────────────────────
 
+def _parsear_lado(lado):
+    """Extrae (nombre, curso) de 'Nombre Equipo (1001)'. Curso = ultimo parentesis."""
+    lado = lado.strip()
+    ultimo_par = lado.rfind("(")
+    if ultimo_par != -1 and lado.endswith(")"):
+        nombre = lado[:ultimo_par].strip()
+        curso  = lado[ultimo_par+1:-1].strip()
+    else:
+        nombre = lado
+        curso  = "?"
+    return nombre, curso
+
+def _parsear_enf(enf):
+    """Parsea 'Equipo A (c1) vs Equipo B (c2)' de forma robusta."""
+    if not isinstance(enf, str):
+        return None
+    idx = enf.find(" vs ")
+    if idx == -1:
+        return None
+    n1, c1 = _parsear_lado(enf[:idx])
+    n2, c2 = _parsear_lado(enf[idx+4:])
+    if not n1 or not n2:
+        return None
+    return n1, c1, n2, c2
+
 def calcular_tabla(datos, categoria, deporte):
     tabla = {}
     partidos = datos["partidos_local"].get(categoria, {}).get(deporte, [])
@@ -248,14 +280,10 @@ def calcular_tabla(datos, categoria, deporte):
         if len(p) < 5 or p[2] != "Finalizado":
             continue
         _, enf, _, g1, g2 = p
-        try:
-            partes = enf.split(" vs ")
-            n1 = partes[0].split("(")[0].strip()
-            c1 = partes[0].split("(")[1].rstrip(")").strip()
-            n2 = partes[1].split("(")[0].strip()
-            c2 = partes[1].split("(")[1].rstrip(")").strip()
-        except Exception:
+        parsed = _parsear_enf(enf)
+        if not parsed:
             continue
+        n1, c1, n2, c2 = parsed
 
         for n, c in [(n1, c1), (n2, c2)]:
             k = f"{n}|{c}"
