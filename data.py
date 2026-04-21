@@ -133,20 +133,30 @@ def eliminar_jugador(jugador_id):
 
 # ── PARTIDOS INTERCURSOS ───────────────────────────────────────────────────────
 
-def obtener_partidos(categoria, deporte):
+@st.cache_data(ttl=0, show_spinner=False)
+def _fetch_partidos(categoria, deporte):
     res = db().table("partidos").select("id,fecha,enf,estado,g1,g2") \
               .eq("categoria", categoria).eq("deporte", deporte).order("fecha").execute()
     return [[r["id"],r["fecha"],r["enf"],r["estado"],r["g1"],r["g2"]] for r in res.data]
 
+def obtener_partidos(categoria, deporte):
+    return _fetch_partidos(categoria, deporte)
+
+def invalidar_cache_partidos():
+    """Llama esto después de cualquier escritura en partidos."""
+    _fetch_partidos.clear()
+
 def actualizar_partido(partido_id, estado, g1, g2):
     db().table("partidos").update({"estado": estado, "g1": g1, "g2": g2}) \
         .eq("id", partido_id).execute()
+    invalidar_cache_partidos()
 
 def insertar_partido(categoria, deporte, fecha, enf, estado="Pendiente", g1=0, g2=0):
     db().table("partidos").insert({
         "categoria": categoria, "deporte": deporte,
         "fecha": fecha, "enf": enf, "estado": estado, "g1": g1, "g2": g2
     }).execute()
+    invalidar_cache_partidos()
 
 # ── LOGROS ─────────────────────────────────────────────────────────────────────
 
@@ -199,6 +209,7 @@ def eliminar_sorteo(categoria, deporte):
     db().table("sorteos").delete().eq("clave", clave).execute()
     db().table("partidos").delete() \
         .eq("categoria", categoria).eq("deporte", deporte).execute()
+    invalidar_cache_partidos()
 
 # ── ROUND ROBIN ───────────────────────────────────────────────────────────────
 
