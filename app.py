@@ -3,7 +3,7 @@ from data import (
     ICONOS_DEP, DEPORTES, CATEGORIAS_LOCAL, USUARIOS, USUARIOS_TIPO,
     obtener_equipos, agregar_equipo, eliminar_equipo, limpiar_equipos_corruptos,
     obtener_jugadores, agregar_jugador, eliminar_jugador,
-    obtener_partidos, actualizar_partido,
+    obtener_partidos, actualizar_partido, invalidar_cache_partidos,
     obtener_logros, agregar_logro, eliminar_logro,
     obtener_partidos_inter, agregar_partido_inter, eliminar_partido_inter,
     obtener_sorteo, realizar_sorteo, eliminar_sorteo, calcular_tabla,
@@ -391,7 +391,8 @@ else:
                         g2 = col2.number_input(f"⚽ {eq2_n[:20]}", min_value=0, value=g2, key="ap_g2")
                     if st.button("Guardar cambios", key="ap_btn"):
                         actualizar_partido(pid, nuevo_est, int(g1), int(g2))
-                        st.success("✅ Partido actualizado. La tabla se actualizará al cambiar de pestaña.")
+                        st.success("✅ Partido actualizado.")
+                        st.rerun()
                 else:
                     st.info("No hay partidos. Realiza el sorteo primero.")
 
