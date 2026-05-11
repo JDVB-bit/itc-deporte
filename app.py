@@ -3,7 +3,7 @@ from data import (
     ICONOS_DEP, DEPORTES, CATEGORIAS_LOCAL, USUARIOS, USUARIOS_TIPO,
     obtener_equipos, agregar_equipo, eliminar_equipo, limpiar_equipos_corruptos,
     obtener_jugadores, agregar_jugador, eliminar_jugador,
-    obtener_partidos, actualizar_partido, invalidar_cache_partidos,
+    obtener_partidos, actualizar_partido,
     obtener_logros, agregar_logro, eliminar_logro,
     obtener_partidos_inter, agregar_partido_inter, eliminar_partido_inter,
     obtener_sorteo, realizar_sorteo, eliminar_sorteo, calcular_tabla,
@@ -11,18 +11,8 @@ from data import (
 
 st.set_page_config(page_title="ITC Deportes", page_icon="⚽", layout="wide")
 
-# ── Session state — todos los campos necesarios ────────────────────────────────
-DEFAULTS = {
-    "rol": "invitado",
-    "usuario": None,
-    "tema": "oscuro",
-    # Recordar posición actual para no perderla en rerun
-    "torneo_idx": 0,        # 0=Intercolegiados, 1=Intercursos
-    "cat_idx": 0,           # 0=PRIMERA, 1=SEGUNDA, 2=TERCERA
-    "dep_idx": 0,           # índice del deporte
-    "vista_ic_idx": 0,      # pestaña activa en intercursos (tabla/partidos/equipos)
-}
-for k, v in DEFAULTS.items():
+# ── Session state ──────────────────────────────────────────────────────────────
+for k, v in [("rol","invitado"),("usuario",None),("tema","oscuro")]:
     if k not in st.session_state:
         st.session_state[k] = v
 
@@ -71,7 +61,7 @@ div[data-testid="stMarkdownContainer"] p{{color:{t['tx']} !important;}}
 </style>""", unsafe_allow_html=True)
 css()
 
-# ── Helpers HTML ───────────────────────────────────────────────────────────────
+# ── Helpers ────────────────────────────────────────────────────────────────────
 def badge(estado):
     if estado == "Finalizado":
         return '<span style="background:#1A6020;color:#90FF90;padding:3px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;">✓ Finalizado</span>'
@@ -80,7 +70,7 @@ def badge(estado):
     return '<span style="background:#3A0A0A;color:#FFB0B0;padding:3px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;">✗ Aplazado</span>'
 
 def card_partido(enf, hora, estado, g1=0, g2=0):
-    m = f'<span style="background:{T()["ac"]};color:{T()["bfg"]};padding:5px 14px;border-radius:6px;font-weight:700;font-family:monospace;">{g1} — {g2}</span>' if estado == "Finalizado" else ""
+    m = f'<span style="background:{T()["ac"]};color:{T()["bfg"]};padding:5px 14px;border-radius:6px;font-weight:700;font-family:monospace;">{g1} — {g2}</span>' if estado=="Finalizado" else ""
     return f"""<div style="background:{T()['bgc']};border-left:4px solid {T()['ac']};
          border-radius:0 8px 8px 0;padding:12px 18px;margin-bottom:8px;
          display:flex;align-items:center;justify-content:space-between;">
@@ -95,6 +85,7 @@ def lbl_sec(txt):
     return f'<div style="font-size:0.7rem;font-weight:700;letter-spacing:2px;color:{T()["tx3"]};text-transform:uppercase;margin-bottom:10px;">{txt}</div>'
 
 def render_tabla(categoria, deporte):
+    # Consulta SIEMPRE directo a Supabase sin ningún cache
     tabla = calcular_tabla(categoria, deporte)
     if not tabla:
         st.info("Sin datos. Realiza el sorteo para registrar los equipos.")
@@ -146,15 +137,10 @@ def render_tabla(categoria, deporte):
 with st.sidebar:
     st.markdown("## ⚽ ITC Deportes")
     st.markdown("---")
-
-    # Tema — solo cambia la variable, no hace rerun completo
     if st.button(f"{T()['ico']} {T()['lbl']}", key="btn_tema"):
         st.session_state.tema = "verde" if st.session_state.tema == "oscuro" else "oscuro"
         st.rerun()
-
     st.markdown("---")
-
-    # Login
     if st.session_state.rol == "invitado":
         st.markdown("**👤 Modo Invitado**")
         with st.expander("🔐 Iniciar sesión"):
@@ -174,19 +160,12 @@ with st.sidebar:
             st.session_state.rol = "invitado"
             st.session_state.usuario = None
             st.rerun()
-
     st.markdown("---")
-
-    # Torneo
-    torneo_opts = ["🏆 Intercolegiados", "🎯 Intercursos"]
-    torneo = st.radio("Torneo", torneo_opts, key="torneo_sel",
-                      index=st.session_state.torneo_idx,
-                      on_change=lambda: st.session_state.update({"torneo_idx": torneo_opts.index(st.session_state.torneo_sel)}))
-
+    torneo = st.radio("Torneo", ["🏆 Intercolegiados","🎯 Intercursos"], key="torneo_sel")
     if torneo == "🎯 Intercursos":
-        cat_opts = ["PRIMERA", "SEGUNDA", "TERCERA"]
         st.markdown("**Categoría**")
-        categoria = st.radio("cat", cat_opts, label_visibility="collapsed", key="cat_sel")
+        categoria = st.radio("cat", ["PRIMERA","SEGUNDA","TERCERA"],
+                             label_visibility="collapsed", key="cat_sel")
         st.caption({"PRIMERA":"Grados 6° y 7°","SEGUNDA":"Grados 8° y 9°","TERCERA":"Grados 10° y 11°"}.get(categoria,""))
         st.markdown("**Deporte**")
         dep_raw = st.radio("dep", [f"{ICONOS_DEP.get(d,'🏅')} {d}" for d in DEPORTES],
@@ -210,11 +189,9 @@ st.markdown(f"""<div style="background:{T()['grad']};border-left:6px solid {T()[
 if torneo == "🏆 Intercolegiados":
     st.markdown(f"<h2 style='color:{T()['ac']};'>🏆 Intercolegiados ITC</h2>", unsafe_allow_html=True)
     tabs = st.tabs([f"{ICONOS_DEP[d]} {d}" for d in DEPORTES])
-
     for i, dep in enumerate(DEPORTES):
         with tabs[i]:
             c1, c2 = st.columns(2)
-
             with c1:
                 st.markdown(lbl_sec("Logros destacados"), unsafe_allow_html=True)
                 logros = [[lid,a,d] for lid,a,d in obtener_logros() if dep in d]
@@ -236,7 +213,6 @@ if torneo == "🏆 Intercolegiados":
                                     st.rerun()
                 else:
                     st.info("Sin logros registrados.")
-
                 if st.session_state.rol == "profesor":
                     with st.expander("➕ Añadir logro"):
                         a_n = st.text_input("Año", key=f"la_{dep}")
@@ -248,7 +224,6 @@ if torneo == "🏆 Intercolegiados":
                                 st.rerun()
                             else:
                                 st.warning("Completa año y descripción.")
-
             with c2:
                 st.markdown(lbl_sec("Partidos programados"), unsafe_allow_html=True)
                 partidos_i = obtener_partidos_inter(dep)
@@ -264,7 +239,6 @@ if torneo == "🏆 Intercolegiados":
                                     st.rerun()
                 else:
                     st.info("Sin partidos programados.")
-
                 if st.session_state.rol == "profesor":
                     with st.expander("➕ Añadir partido"):
                         f_p = st.text_input("Fecha (AAAA-MM-DD)", key=f"pf_{dep}")
@@ -285,16 +259,14 @@ else:
     st.markdown(f"<h2 style='color:{T()['ac']};'>🎯 Intercursos — {categoria}</h2>", unsafe_allow_html=True)
     st.markdown(f"<p style='color:{T()['tx3']};margin-top:-12px;'>{'Grados 6° y 7°' if categoria=='PRIMERA' else 'Grados 8° y 9°' if categoria=='SEGUNDA' else 'Grados 10° y 11°'}</p>", unsafe_allow_html=True)
 
-    # ── Panel profesor ─────────────────────────────────────────────────────────
     if st.session_state.rol == "profesor":
         with st.expander("⚙️ Panel de Gestión — Profesor", expanded=False):
-            ptabs = st.tabs(["➕ Equipo", "👤 Jugador", "✏️ Partido", "🎲 Sorteo"])
+            ptabs = st.tabs(["➕ Equipo","👤 Jugador","✏️ Partido","🎲 Sorteo"])
 
-            # ── EQUIPO ─────────────────────────────────────────────────────────
             with ptabs[0]:
                 st.markdown("**Añadir equipo**")
                 dep_ae = st.selectbox("Deporte", DEPORTES, key="ae_dep")
-                cur_ae = st.selectbox("Curso", CATEGORIAS_LOCAL.get(categoria, []), key="ae_cur")
+                cur_ae = st.selectbox("Curso", CATEGORIAS_LOCAL.get(categoria,[]), key="ae_cur")
                 nom_ae = st.text_input("Nombre del equipo", key="ae_nom")
                 if st.button("Añadir equipo", key="ae_btn"):
                     nom = nom_ae.strip()
@@ -303,7 +275,6 @@ else:
                         if err: st.error(err)
                         else:   st.success(f"✅ Equipo '{nom}' añadido."); st.rerun()
                     else: st.warning("Ingresa un nombre.")
-
                 st.markdown("---")
                 st.markdown("**Eliminar equipo**")
                 dep_de = st.selectbox("Deporte ", DEPORTES, key="de_dep")
@@ -321,7 +292,6 @@ else:
                     else: st.info("No hay equipos en ese curso.")
                 else: st.info("No hay equipos registrados.")
 
-            # ── JUGADOR ────────────────────────────────────────────────────────
             with ptabs[1]:
                 st.markdown("**Añadir jugador**")
                 dep_aj = st.selectbox("Deporte", DEPORTES, key="aj_dep")
@@ -342,7 +312,6 @@ else:
                             else: st.warning("Ingresa un nombre.")
                     else: st.info("No hay equipos en ese curso.")
                 else: st.info("No hay equipos registrados.")
-
                 st.markdown("---")
                 st.markdown("**Eliminar jugador**")
                 dep_dj = st.selectbox("Deporte  ", DEPORTES, key="dj_dep")
@@ -366,9 +335,9 @@ else:
                     else: st.info("No hay equipos en ese curso.")
                 else: st.info("No hay equipos registrados.")
 
-            # ── PARTIDO ────────────────────────────────────────────────────────
             with ptabs[2]:
                 dep_ap = st.selectbox("Deporte", DEPORTES, key="ap_dep")
+                # Consulta fresca cada vez
                 pl_dep = obtener_partidos(categoria, dep_ap)
                 if pl_dep:
                     opts_p = [f"[{i+1}] {p[1][:10]} | {p[2][:45]} | {p[3]}" for i,p in enumerate(pl_dep)]
@@ -396,27 +365,27 @@ else:
                 else:
                     st.info("No hay partidos. Realiza el sorteo primero.")
 
-            # ── SORTEO ─────────────────────────────────────────────────────────
             with ptabs[3]:
                 dep_sort = st.selectbox("Deporte", DEPORTES, key="sort_dep")
                 key_s    = f"{categoria}_{dep_sort}"
                 sorteo   = obtener_sorteo(key_s)
-
                 if sorteo:
                     st.info(f"✅ Sorteo activo: {sorteo['fecha'][:10]} · {sorteo['n_equipos']} equipos")
                     col_s1, col_s2 = st.columns(2)
                     with col_s1:
-                        if st.button(f"🔄 Re-sortear", key="sort_btn"):
+                        if st.button("🔄 Re-sortear", key="sort_btn"):
                             with st.spinner("Generando fixture..."):
                                 ok, error = realizar_sorteo(categoria, dep_sort)
                             if error: st.error(error)
                             else:
                                 s2 = obtener_sorteo(key_s)
-                                st.success(f"✅ {s2['n_equipos']} equipos · 7 jornadas."); st.rerun()
+                                st.success(f"✅ {s2['n_equipos']} equipos · 7 jornadas.")
+                                st.rerun()
                     with col_s2:
                         if st.button("🗑️ Eliminar sorteo", key="del_sort_btn"):
                             eliminar_sorteo(categoria, dep_sort)
-                            st.success("✅ Sorteo y partidos eliminados."); st.rerun()
+                            st.success("✅ Sorteo y partidos eliminados.")
+                            st.rerun()
                 else:
                     st.markdown("Genera el fixture **Round-Robin de 7 jornadas**.")
                     if st.button(f"🎲 Realizar sorteo — {dep_sort}", key="sort_btn"):
@@ -425,19 +394,21 @@ else:
                         if error: st.error(error)
                         else:
                             s2 = obtener_sorteo(key_s)
-                            st.success(f"✅ Sorteo listo. {s2['n_equipos']} equipos · 7 jornadas."); st.rerun()
+                            st.success(f"✅ Sorteo listo. {s2['n_equipos']} equipos · 7 jornadas.")
+                            st.rerun()
 
     st.markdown(f'<hr style="height:2px;background:linear-gradient(90deg,{T()["ac"]},transparent);border:none;margin:16px 0;">', unsafe_allow_html=True)
 
-    # ── Vistas principales ─────────────────────────────────────────────────────
+    # ── Vistas — la tabla siempre consulta directo a Supabase ──────────────────
     vista = st.tabs(["📊 Tabla", "📅 Partidos", "👥 Equipos"])
 
-    # ── TABLA — siempre recalcula desde BD ────────────────────────────────────
     with vista[0]:
         st.markdown(f"<h3 style='color:{T()['tx']};margin-bottom:12px;'>📊 {deporte} · {categoria}</h3>", unsafe_allow_html=True)
+        # Botón para forzar recarga manual si hace falta
+        if st.button("🔄 Actualizar tabla", key="refresh_tabla"):
+            st.rerun()
         render_tabla(categoria, deporte)
 
-    # ── PARTIDOS ──────────────────────────────────────────────────────────────
     with vista[1]:
         st.markdown(f"<h3 style='color:{T()['tx']};margin-bottom:12px;'>📅 {deporte} · {categoria}</h3>", unsafe_allow_html=True)
         partidos = obtener_partidos(categoria, deporte)
@@ -459,7 +430,6 @@ else:
         else:
             st.info("Sin partidos. Usa el Panel de Gestión → Sorteo para generar el fixture.")
 
-    # ── EQUIPOS ───────────────────────────────────────────────────────────────
     with vista[2]:
         st.markdown(f"<h3 style='color:{T()['tx']};margin-bottom:12px;'>👥 {deporte} · {categoria}</h3>", unsafe_allow_html=True)
         equipos_dep = obtener_equipos(categoria, deporte)
