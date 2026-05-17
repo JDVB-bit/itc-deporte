@@ -12,13 +12,9 @@ from data import (
 st.set_page_config(page_title="ITC Deportes", page_icon="⚽", layout="wide")
 
 # ── Session state ──────────────────────────────────────────────────────────────
-for k, v in [("rol","invitado"),("usuario",None),("tema","oscuro"),("_db_version",0)]:
+for k, v in [("rol","invitado"),("usuario",None),("tema","oscuro"),("mostrar_tabla",False)]:
     if k not in st.session_state:
         st.session_state[k] = v
-
-def invalidar_cache():
-    """Incrementa el contador de versión para forzar nuevas consultas a BD."""
-    st.session_state["_db_version"] += 1
 
 # ── Temas ──────────────────────────────────────────────────────────────────────
 TEMAS = {
@@ -88,8 +84,8 @@ def card_partido(enf, hora, estado, g1=0, g2=0):
 def lbl_sec(txt):
     return f'<div style="font-size:0.7rem;font-weight:700;letter-spacing:2px;color:{T()["tx3"]};text-transform:uppercase;margin-bottom:10px;">{txt}</div>'
 
-def render_tabla(categoria, deporte, _version=0):
-    # _version se pasa desde session_state para forzar re-ejecución real
+def render_tabla(categoria, deporte):
+    # Consulta SIEMPRE directo a Supabase sin ningún cache
     tabla = calcular_tabla(categoria, deporte)
     if not tabla:
         st.info("Sin datos. Realiza el sorteo para registrar los equipos.")
@@ -364,9 +360,12 @@ else:
                         g2 = col2.number_input(f"⚽ {eq2_n[:20]}", min_value=0, value=g2, key="ap_g2")
                     if st.button("Guardar cambios", key="ap_btn"):
                         actualizar_partido(pid, nuevo_est, int(g1), int(g2))
-                        invalidar_cache()
-                        st.success("✅ Partido actualizado.")
-                        st.rerun()
+                        st.session_state.mostrar_tabla = True
+                        st.success("✅ Partido actualizado. Tabla actualizada abajo 👇")
+                    if st.session_state.mostrar_tabla:
+                        st.markdown("---")
+                        st.markdown(f"**📊 Tabla actualizada — {categoria}**")
+                        render_tabla(categoria, dep_ap)
                 else:
                     st.info("No hay partidos. Realiza el sorteo primero.")
 
@@ -384,13 +383,11 @@ else:
                             if error: st.error(error)
                             else:
                                 s2 = obtener_sorteo(key_s)
-                                invalidar_cache()
                                 st.success(f"✅ {s2['n_equipos']} equipos · 7 jornadas.")
                                 st.rerun()
                     with col_s2:
                         if st.button("🗑️ Eliminar sorteo", key="del_sort_btn"):
                             eliminar_sorteo(categoria, dep_sort)
-                            invalidar_cache()
                             st.success("✅ Sorteo y partidos eliminados.")
                             st.rerun()
                 else:
@@ -401,7 +398,6 @@ else:
                         if error: st.error(error)
                         else:
                             s2 = obtener_sorteo(key_s)
-                            invalidar_cache()
                             st.success(f"✅ Sorteo listo. {s2['n_equipos']} equipos · 7 jornadas.")
                             st.rerun()
 
@@ -413,9 +409,9 @@ else:
     with vista[0]:
         st.markdown(f"<h3 style='color:{T()['tx']};margin-bottom:12px;'>📊 {deporte} · {categoria}</h3>", unsafe_allow_html=True)
         if st.button("🔄 Actualizar tabla", key="refresh_tabla"):
-            invalidar_cache()
+            st.session_state.mostrar_tabla = False
             st.rerun()
-        render_tabla(categoria, deporte, _version=st.session_state["_db_version"])
+        render_tabla(categoria, deporte)
 
     with vista[1]:
         st.markdown(f"<h3 style='color:{T()['tx']};margin-bottom:12px;'>📅 {deporte} · {categoria}</h3>", unsafe_allow_html=True)
