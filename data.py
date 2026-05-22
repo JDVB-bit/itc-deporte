@@ -1,8 +1,8 @@
 """
 data.py — ITC Deportes con Supabase
-SIN cache — cada consulta va directo a la BD para datos siempre frescos.
+Sin cache de datos. Sin diccionario de equipos predefinidos.
 """
-import json, random, datetime
+import json, random, datetime, re
 import streamlit as st
 from supabase import create_client, Client
 
@@ -13,19 +13,6 @@ CATEGORIAS_LOCAL = {
     "PRIMERA": generar_cursos(6, 9) + generar_cursos(7, 8),
     "SEGUNDA": generar_cursos(8, 8) + generar_cursos(9, 6),
     "TERCERA": generar_cursos(10, 3) + generar_cursos(11, 4),
-}
-
-EQUIPOS_POR_CURSO = {
-    "601":"Halcones FC","602":"Pumas FC","603":"Condores FC","604":"Jaguares FC",
-    "605":"Leones FC","606":"Dragones FC","607":"Guerreros FC","608":"Titanes FC",
-    "609":"Aguilas FC","701":"Fenix FC","702":"Lobos FC","703":"Raptors FC",
-    "704":"Tigres FC","705":"Spartans FC","706":"Truenos FC","707":"Centellas FC",
-    "708":"Gladiadores FC","801":"Tiburones FC","802":"Panteras FC","803":"Escorpiones FC",
-    "804":"Huracanes FC","805":"Toros FC","806":"Buhos FC","807":"Zorros FC","808":"Cobras FC",
-    "901":"Lobos Negros FC","902":"Flamas FC","903":"Vikingos FC","904":"Corsarios FC",
-    "905":"Rayos FC","906":"Cometas FC","1001":"Elite FC","1002":"Fenix D.C FC",
-    "1003":"Eagles FC","1101":"Lobos Dorados FC","1102":"Raptors Sur FC",
-    "1103":"Spartans Pro FC","1104":"Titanes Pro FC",
 }
 
 DEPORTES   = ["Balonmano", "Microfutbol", "Baloncesto", "Voleyball"]
@@ -39,7 +26,6 @@ CURSOS_VALIDOS = set(
     generar_cursos(10,3) + generar_cursos(11,4)
 )
 
-# ── Conexión — solo la conexión se cachea, nunca los datos ────────────────────
 @st.cache_resource
 def get_supabase() -> Client:
     return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
@@ -47,7 +33,43 @@ def get_supabase() -> Client:
 def db() -> Client:
     return get_supabase()
 
-# ── EQUIPOS ───────────────────────────────────────────────────────────────────
+# ── Parseo robusto de enfrentamientos ────────────────────────────────────────
+
+def parsear_lado(texto):
+    texto = str(texto).strip()
+    # Formato tupla Python: ('Nombre', '601') o con (?) al final
+    m = re.match(r"^[\(\[]\s*['\"](.+?)['\"]\s*,\s*['\"](.+?)['\"]\s*[\)\]](\s*\(\?\))?$", texto)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+    # Formato normal: Nombre (601)
+    ultimo = texto.rfind("(")
+    if ultimo != -1 and texto.endswith(")"):
+        nombre = texto[:ultimo].strip()
+        curso  = texto[ultimo+1:-1].strip()
+        if nombre:
+            return nombre, curso
+    return texto, "?"
+
+def parsear_enf(enf):
+    if not isinstance(enf, str):
+        return None
+    idx = enf.find(" vs ")
+    if idx == -1:
+        return None
+    n1, c1 = parsear_lado(enf[:idx])
+    n2, c2 = parsear_lado(enf[idx+4:])
+    if not n1 or not n2:
+        return None
+    return n1, c1, n2, c2
+
+def enf_limpio(enf):
+    """Devuelve texto legible del enfrentamiento."""
+    p = parsear_enf(enf)
+    if p:
+        return f"{p[0]} ({p[1]}) vs {p[2]} ({p[3]})"
+    return enf
+
+# ── EQUIPOS ──────────────────────────────────────────────────────────────────
 
 def obtener_equipos(categoria, deporte):
     res = db().table("equipos").select("curso,nombre") \
@@ -56,7 +78,7 @@ def obtener_equipos(categoria, deporte):
     for r in res.data:
         curso  = str(r["curso"]).strip().strip("'\"")
         nombre = str(r["nombre"]).strip()
-        if curso in CURSOS_VALIDOS and nombre and "'" not in nombre:
+        if curso in CURSOS_VALIDOS and nombre:
             result.setdefault(curso, [])
             if nombre not in result[curso]:
                 result[curso].append(nombre)
@@ -102,7 +124,7 @@ def limpiar_equipos_corruptos(categoria, deporte):
         db().table("equipos").delete().eq("id", rid).execute()
     return len(ids_borrar)
 
-# ── JUGADORES ─────────────────────────────────────────────────────────────────
+# ── JUGADORES ────────────────────────────────────────────────────────────────
 
 def obtener_jugadores(categoria, deporte, curso, equipo):
     res = db().table("jugadores").select("id,nombre,puntos") \
@@ -128,8 +150,7 @@ def agregar_jugador(categoria, deporte, curso, equipo, nombre):
 def eliminar_jugador(jugador_id):
     db().table("jugadores").delete().eq("id", jugador_id).execute()
 
-# ── PARTIDOS INTERCURSOS ──────────────────────────────────────────────────────
-# SIN cache — siempre datos frescos de Supabase
+# ── PARTIDOS ─────────────────────────────────────────────────────────────────
 
 def obtener_partidos(categoria, deporte):
     res = db().table("partidos").select("id,fecha,enf,estado,g1,g2") \
@@ -147,7 +168,7 @@ def insertar_partido(categoria, deporte, fecha, enf, estado="Pendiente", g1=0, g
         "fecha": fecha, "enf": enf, "estado": estado, "g1": g1, "g2": g2
     }).execute()
 
-# ── LOGROS ────────────────────────────────────────────────────────────────────
+# ── LOGROS ───────────────────────────────────────────────────────────────────
 
 def obtener_logros():
     res = db().table("logros").select("id,anio,descripcion").order("anio", desc=True).execute()
@@ -159,7 +180,7 @@ def agregar_logro(anio, descripcion):
 def eliminar_logro(logro_id):
     db().table("logros").delete().eq("id", logro_id).execute()
 
-# ── PARTIDOS INTERCOLEGIADOS ──────────────────────────────────────────────────
+# ── PARTIDOS INTERCOLEGIADOS ─────────────────────────────────────────────────
 
 def obtener_partidos_inter(deporte):
     res = db().table("partidos_inter").select("id,fecha,enf,estado") \
@@ -174,7 +195,7 @@ def agregar_partido_inter(deporte, fecha, enf, estado):
 def eliminar_partido_inter(partido_id):
     db().table("partidos_inter").delete().eq("id", partido_id).execute()
 
-# ── SORTEOS ───────────────────────────────────────────────────────────────────
+# ── SORTEOS ──────────────────────────────────────────────────────────────────
 
 def obtener_sorteo(clave):
     res = db().table("sorteos").select("*").eq("clave", clave).execute()
@@ -193,12 +214,9 @@ def guardar_sorteo(clave, fecha, n_equipos, equipos):
     }, on_conflict="clave").execute()
 
 def eliminar_sorteo(categoria, deporte):
-    clave = f"{categoria}_{deporte}"
-    db().table("sorteos").delete().eq("clave", clave).execute()
+    db().table("sorteos").delete().eq("clave", f"{categoria}_{deporte}").execute()
     db().table("partidos").delete() \
         .eq("categoria", categoria).eq("deporte", deporte).execute()
-
-# ── SORTEO ROUND ROBIN ────────────────────────────────────────────────────────
 
 def _generar_round_robin(equipos):
     eqs = list(equipos)
@@ -217,21 +235,13 @@ def _generar_round_robin(equipos):
 
 def realizar_sorteo(categoria, deporte):
     limpiar_equipos_corruptos(categoria, deporte)
-    equipos_con_curso = []
-    for cur in CATEGORIAS_LOCAL.get(categoria, []):
-        eqs = obtener_equipos(categoria, deporte).get(cur, [])
-        if eqs:
-            for eq in eqs:
-                equipos_con_curso.append((eq, cur))
-        else:
-            pred = EQUIPOS_POR_CURSO.get(cur)
-            if pred:
-                err = agregar_equipo(categoria, deporte, cur, pred)
-                if not err:
-                    equipos_con_curso.append((pred, cur))
-
+    equipos_con_curso = [
+        (eq, cur)
+        for cur, eqs in obtener_equipos(categoria, deporte).items()
+        for eq in eqs
+    ]
     if len(equipos_con_curso) < 2:
-        return None, "Se necesitan al menos 2 equipos para el sorteo."
+        return None, "Se necesitan al menos 2 equipos registrados para el sorteo."
 
     random.shuffle(equipos_con_curso)
     fixture = _generar_round_robin(equipos_con_curso)
@@ -250,7 +260,8 @@ def realizar_sorteo(categoria, deporte):
                 continue
             c1 = next((c for eq, c in equipos_con_curso if eq == e1), "?")
             c2 = next((c for eq, c in equipos_con_curso if eq == e2), "?")
-            insertar_partido(categoria, deporte, fecha_str, f"{e1} ({c1}) vs {e2} ({c2})")
+            insertar_partido(categoria, deporte, fecha_str,
+                             f"{e1} ({c1}) vs {e2} ({c2})")
 
     guardar_sorteo(
         f"{categoria}_{deporte}",
@@ -260,33 +271,18 @@ def realizar_sorteo(categoria, deporte):
     )
     return True, None
 
-# ── TABLA DE POSICIONES ───────────────────────────────────────────────────────
-
-def _parsear_lado(texto):
-    texto = str(texto).strip()
-    if len(texto) > 4 and texto[0] in "([" and texto[-1] in ")]":
-        partes = texto[1:-1].split(",", 1)
-        if len(partes) == 2:
-            n = partes[0].strip().strip("'\"").strip()
-            c = partes[1].strip().strip("'\"").strip()
-            if n: return n, c
-    ultimo = texto.rfind("(")
-    if ultimo != -1 and texto.endswith(")"):
-        return texto[:ultimo].strip(), texto[ultimo+1:-1].strip()
-    return texto, "?"
+# ── TABLA ────────────────────────────────────────────────────────────────────
 
 def calcular_tabla(categoria, deporte):
-    # Siempre consulta directo a Supabase — sin cache
     tabla = {}
     for p in obtener_partidos(categoria, deporte):
         _, fecha, enf, estado, g1, g2 = p
         if estado != "Finalizado":
             continue
-        idx = enf.find(" vs ")
-        if idx == -1:
+        parsed = parsear_enf(enf)
+        if not parsed:
             continue
-        n1, c1 = _parsear_lado(enf[:idx])
-        n2, c2 = _parsear_lado(enf[idx+4:])
+        n1, c1, n2, c2 = parsed
         if c1 not in CURSOS_VALIDOS or c2 not in CURSOS_VALIDOS:
             continue
         for n, c in [(n1, c1), (n2, c2)]:
