@@ -2,16 +2,12 @@ name: Keep Alive
 
 on:
   schedule:
-    - cron: '*/25 * * * *'  # Cada 25 minutos
-  workflow_dispatch:          # También se puede correr manualmente
+    - cron: '0 */1 * * *'
+  workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping app
-        run: |
-          curl -L --max-time 60 --retry 3 \
-            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0" \
-            https://itc-deportes.streamlit.app \
-            -o /dev/null -w "Status: %{http_code}\n"
+      - name: Wake Streamlit
+        run: curl -L -s -o /dev/null "https://itc-deportes.streamlit.app/" || true
