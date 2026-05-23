@@ -10,7 +10,7 @@ from data import (
     enf_limpio,
 )
 
-st.set_page_config(page_title="ITC Deportes", page_icon="⚽", layout="wide")
+st.set_page_config(page_title="ITC Deportes", page_icon="static/logo_final.png", layout="wide")
 
 for k, v in [("rol","invitado"),("usuario",None),("tema","oscuro")]:
     if k not in st.session_state:
