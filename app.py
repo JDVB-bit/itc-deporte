@@ -10,7 +10,7 @@ from data import (
     enf_limpio,
 )
 
-st.set_page_config(page_title="ITC Deportes", page_icon="static/logo_itc.png", layout="wide")
+st.set_page_config(page_title="ITC Deportes", page_icon="⚽", layout="wide")
 
 for k, v in [("rol","invitado"),("usuario",None),("tema","oscuro")]:
     if k not in st.session_state:
@@ -40,23 +40,95 @@ def css():
     t = T()
     st.markdown(f"""<style>
 @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;600;700&display=swap');
+
+/* ── Base ── */
 html,body,[class*="css"]{{font-family:'Barlow',sans-serif;background:{t['bg']} !important;color:{t['tx']} !important;}}
 [data-testid="stAppViewContainer"]{{background:{t['bg']} !important;}}
+
+/* ── Sidebar ── */
 [data-testid="stSidebar"]{{background:{t['sbg']} !important;border-right:1px solid {t['bgc']};}}
 [data-testid="stSidebar"] *{{color:{t['tx2']} !important;}}
 [data-testid="stSidebar"] h2{{color:{t['ac']} !important;font-size:1.3rem;}}
-.stTabs [data-baseweb="tab-list"]{{background:{t['bgc']};border-radius:8px;padding:4px;gap:4px;}}
-.stTabs [data-baseweb="tab"]{{background:transparent;color:{t['tx2']} !important;border-radius:6px;padding:8px 16px;font-weight:600;}}
+
+/* ── Tabs ── */
+.stTabs [data-baseweb="tab-list"]{{background:{t['bgc']};border-radius:8px;padding:4px;gap:2px;overflow-x:auto;}}
+.stTabs [data-baseweb="tab"]{{background:transparent;color:{t['tx2']} !important;border-radius:6px;padding:8px 12px;font-weight:600;white-space:nowrap;font-size:0.85rem;}}
 .stTabs [aria-selected="true"]{{background:{t['ac']} !important;color:{t['bfg']} !important;}}
+
+/* ── Expander ── */
 .stExpander{{background:{t['bgc']} !important;border:1px solid {t['bga']} !important;border-radius:8px !important;}}
 .stExpander summary{{color:{t['ac']} !important;font-weight:700 !important;}}
+
+/* ── Inputs ── */
 .stSelectbox>div>div,.stTextInput>div>div>input,.stNumberInput>div>div>input{{
     background:{t['bga']} !important;color:{t['tx']} !important;
-    border-color:{t['bgc']} !important;border-radius:6px !important;}}
+    border-color:{t['bgc']} !important;border-radius:6px !important;
+    font-size:1rem !important;}}
+
+/* ── Buttons ── */
 .stButton>button{{background:{t['ac']} !important;color:{t['bfg']} !important;
-    font-weight:700 !important;border:none !important;border-radius:6px !important;padding:8px 20px !important;}}
+    font-weight:700 !important;border:none !important;border-radius:6px !important;
+    padding:10px 20px !important;width:100%;font-size:0.95rem !important;}}
 .stButton>button:hover{{background:{t['achi']} !important;}}
+
+/* ── Texto ── */
 div[data-testid="stMarkdownContainer"] p{{color:{t['tx']} !important;}}
+h1,h2,h3{{word-break:break-word;}}
+
+/* ── Tabla responsive ── */
+.tabla-responsive{{overflow-x:auto;-webkit-overflow-scrolling:touch;}}
+.tabla-responsive table{{min-width:600px;}}
+
+/* ── Cards de partido responsive ── */
+.partido-card{{flex-wrap:wrap;gap:8px;}}
+.partido-card .partido-info{{min-width:0;flex:1;}}
+.partido-card .partido-badges{{flex-shrink:0;}}
+
+/* ── Padding general en móvil ── */
+@media (max-width: 768px) {{
+    /* Hero más compacto */
+    .itc-hero-div{{padding:16px 18px !important;margin-bottom:14px !important;}}
+    .itc-hero-div .titulo{{font-size:2rem !important;letter-spacing:3px !important;}}
+    .itc-hero-div .subtitulo{{font-size:0.8rem !important;}}
+
+    /* Tabs más pequeños */
+    .stTabs [data-baseweb="tab"]{{padding:6px 8px !important;font-size:0.78rem !important;}}
+
+    /* Botones full width en móvil */
+    .stButton>button{{padding:12px 16px !important;font-size:0.9rem !important;}}
+
+    /* Columnas apiladas en móvil */
+    [data-testid="column"]{{min-width:100% !important;}}
+
+    /* Inputs más grandes para touch */
+    .stSelectbox>div>div,.stTextInput>div>div>input,.stNumberInput>div>div>input{{
+        font-size:1rem !important;padding:10px !important;}}
+
+    /* Tabla scroll horizontal */
+    table{{display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;}}
+
+    /* Número input centrado */
+    .stNumberInput{{text-align:center;}}
+
+    /* Panel profesor ocupa todo */
+    .stExpander{{margin:0 -1rem !important;border-radius:0 !important;}}
+
+    /* Sidebar overlay en móvil (comportamiento nativo Streamlit) */
+    [data-testid="stSidebar"]{{z-index:999;}}
+
+    /* Cards de partido */
+    div[style*="justify-content:space-between"]{{
+        flex-direction:column !important;
+        align-items:flex-start !important;
+        gap:8px !important;
+    }}
+}}
+
+@media (max-width: 480px) {{
+    .stTabs [data-baseweb="tab"]{{padding:5px 6px !important;font-size:0.72rem !important;}}
+    h2{{font-size:1.3rem !important;}}
+    h3{{font-size:1.1rem !important;}}
+}}
 </style>""", unsafe_allow_html=True)
 css()
 
@@ -69,15 +141,15 @@ def badge(estado):
     return '<span style="background:#3A0A0A;color:#FFB0B0;padding:3px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;">✗ Aplazado</span>'
 
 def card_partido(enf, hora, estado, g1=0, g2=0):
-    m = f'<span style="background:{T()["ac"]};color:{T()["bfg"]};padding:5px 14px;border-radius:6px;font-weight:700;font-family:monospace;">{g1} — {g2}</span>' if estado=="Finalizado" else ""
+    m = f'<span style="background:{T()["ac"]};color:{T()["bfg"]};padding:4px 12px;border-radius:6px;font-weight:700;font-family:monospace;font-size:1rem;">{g1} — {g2}</span>' if estado=="Finalizado" else ""
     return f"""<div style="background:{T()['bgc']};border-left:4px solid {T()['ac']};
-         border-radius:0 8px 8px 0;padding:12px 18px;margin-bottom:8px;
-         display:flex;align-items:center;justify-content:space-between;">
-  <div>
-    <div style="font-weight:700;color:{T()['tx']};font-size:0.95rem;margin-bottom:2px;">{enf}</div>
-    <div style="color:{T()['tx3']};font-size:0.8rem;">🕐 {hora}</div>
+         border-radius:0 8px 8px 0;padding:12px 16px;margin-bottom:8px;
+         display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:8px;">
+  <div style="flex:1;min-width:0;">
+    <div style="font-weight:700;color:{T()['tx']};font-size:0.9rem;margin-bottom:3px;word-break:break-word;">{enf}</div>
+    <div style="color:{T()['tx3']};font-size:0.78rem;">🕐 {hora}</div>
   </div>
-  <div style="display:flex;align-items:center;gap:10px;">{m}{badge(estado)}</div>
+  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">{m}{badge(estado)}</div>
 </div>"""
 
 def lbl_sec(txt):
@@ -120,8 +192,8 @@ def render_tabla(categoria, deporte):
           <td style="{TD}background:{rbg};color:{dg_c};font-weight:600;">{dg}</td>
           <td style="{TD}background:{rbg};color:{pts_c};font-weight:700;">{r['Pts']}</td>
         </tr>"""
-    st.markdown(f"""<div style="border-radius:10px;overflow:hidden;border:1px solid {T()['bga']};margin-top:8px;">
-    <table style="width:100%;border-collapse:collapse;">
+    st.markdown(f"""<div style="border-radius:10px;overflow:hidden;border:1px solid {T()['bga']};margin-top:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+    <table style="width:100%;border-collapse:collapse;min-width:560px;">
       <thead><tr>
         <th style="{TH}">#</th>
         <th style="{TH}text-align:left;padding-left:14px;">Equipo</th>
@@ -176,11 +248,11 @@ with st.sidebar:
         deporte   = None
 
 # ── Hero ──────────────────────────────────────────────────────────────────────
-st.markdown(f"""<div style="background:{T()['grad']};border-left:6px solid {T()['ac']};
-     padding:26px 36px;margin-bottom:24px;border-radius:0 12px 12px 0;">
-  <div style="font-family:'Bebas Neue',Impact,sans-serif;font-size:3rem;
-              color:{T()['ac']};letter-spacing:5px;">ITC DEPORTES</div>
-  <div style="color:{T()['tx2']};font-size:0.9rem;margin-top:4px;">Sistema de gestión deportiva · 2026</div>
+st.markdown(f"""<div class="itc-hero-div" style="background:{T()['grad']};border-left:6px solid {T()['ac']};
+     padding:20px 24px;margin-bottom:18px;border-radius:0 12px 12px 0;">
+  <div class="titulo" style="font-family:'Bebas Neue',Impact,sans-serif;font-size:2.6rem;
+              color:{T()['ac']};letter-spacing:4px;line-height:1.1;">ITC DEPORTES</div>
+  <div class="subtitulo" style="color:{T()['tx2']};font-size:0.85rem;margin-top:4px;">Sistema de gestión deportiva · 2026</div>
 </div>""", unsafe_allow_html=True)
 
 # ═════════════════════════════════════════════════════════════════════════════
