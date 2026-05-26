@@ -207,8 +207,8 @@ def render_tabla(categoria, deporte):
     </div>""", unsafe_allow_html=True)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
-    with st.sidebar:
-        col1, col2 = st.columns([1, 6])
+with st.sidebar:
+    col1, col2 = st.columns([1, 6])
     
     with col1:
         st.image("logo_itc.png", width=60)
