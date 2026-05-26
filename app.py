@@ -112,7 +112,6 @@ h1,h2,h3{{word-break:break-word;}}
 }}
 </style>""", unsafe_allow_html=True)
 css()
-st.write(verificar_login("admin", "1234"))
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def badge(estado):
