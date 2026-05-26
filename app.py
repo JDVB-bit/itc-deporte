@@ -1,6 +1,6 @@
 import streamlit as st
 from data import (
-    ICONOS_DEP, DEPORTES, CATEGORIAS_LOCAL, USUARIOS, USUARIOS_TIPO,
+    ICONOS_DEP, DEPORTES, CATEGORIAS_LOCAL, verificar_login,
     obtener_equipos, agregar_equipo, eliminar_equipo, limpiar_equipos_corruptos,
     obtener_jugadores, agregar_jugador, eliminar_jugador,
     obtener_partidos, actualizar_partido,
@@ -86,37 +86,18 @@ h1,h2,h3{{word-break:break-word;}}
 
 /* ── Padding general en móvil ── */
 @media (max-width: 768px) {{
-    /* Hero más compacto */
     .itc-hero-div{{padding:16px 18px !important;margin-bottom:14px !important;}}
     .itc-hero-div .titulo{{font-size:2rem !important;letter-spacing:3px !important;}}
     .itc-hero-div .subtitulo{{font-size:0.8rem !important;}}
-
-    /* Tabs más pequeños */
     .stTabs [data-baseweb="tab"]{{padding:6px 8px !important;font-size:0.78rem !important;}}
-
-    /* Botones full width en móvil */
     .stButton>button{{padding:12px 16px !important;font-size:0.9rem !important;}}
-
-    /* Columnas apiladas en móvil */
     [data-testid="column"]{{min-width:100% !important;}}
-
-    /* Inputs más grandes para touch */
     .stSelectbox>div>div,.stTextInput>div>div>input,.stNumberInput>div>div>input{{
         font-size:1rem !important;padding:10px !important;}}
-
-    /* Tabla scroll horizontal */
     table{{display:block;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;}}
-
-    /* Número input centrado */
     .stNumberInput{{text-align:center;}}
-
-    /* Panel profesor ocupa todo */
     .stExpander{{margin:0 -1rem !important;border-radius:0 !important;}}
-
-    /* Sidebar overlay en móvil (comportamiento nativo Streamlit) */
     [data-testid="stSidebar"]{{z-index:999;}}
-
-    /* Cards de partido */
     div[style*="justify-content:space-between"]{{
         flex-direction:column !important;
         align-items:flex-start !important;
@@ -220,10 +201,10 @@ with st.sidebar:
             user = st.text_input("Usuario", key="sb_user")
             pwd  = st.text_input("Contraseña", type="password", key="sb_pwd")
             if st.button("Entrar", key="btn_login"):
-                if user in USUARIOS and USUARIOS[user] == pwd and USUARIOS_TIPO.get(user) == "profesor":
+                tipo = verificar_login(user, pwd)
+                if tipo == "profesor":
                     st.session_state.rol = "profesor"
                     st.session_state.usuario = user
-                    # Sin rerun — se queda en la misma posición
                 else:
                     st.error("Credenciales incorrectas.")
     else:
@@ -331,7 +312,6 @@ else:
 
             # ── EQUIPO ────────────────────────────────────────────────────────
             with ptabs[0]:
-                # Deporte fijo = el del sidebar
                 st.markdown(f"Deporte activo: {dep_badge(deporte)}", unsafe_allow_html=True)
                 st.markdown("---")
                 st.markdown("**Añadir equipo**")
@@ -410,7 +390,6 @@ else:
                 st.markdown("---")
                 pl_dep = obtener_partidos(categoria, deporte)
                 if pl_dep:
-                    # Opciones limpias: solo nombre de equipos sin símbolos
                     def opt_partido(i, p):
                         limpio = enf_limpio(p[2])
                         estado_icon = "✓" if p[3]=="Finalizado" else "⏳"
@@ -423,7 +402,6 @@ else:
                     pid, fecha_p, enf_p, estado_p, g1_p, g2_p = p_sel
                     enf_show = enf_limpio(enf_p)
 
-                    # Card visual del partido
                     st.markdown(f"""<div style="background:{T()['bgs']};border-left:4px solid {T()['ac']};
                          padding:16px 20px;border-radius:0 8px 8px 0;margin:10px 0 16px;">
                       <div style="font-weight:700;color:{T()['tx']};font-size:1.05rem;">{enf_show}</div>
