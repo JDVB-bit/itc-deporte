@@ -207,16 +207,14 @@ def render_tabla(categoria, deporte):
     </div>""", unsafe_allow_html=True)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.markdown(
-        """
-        <div style="display:flex; align-items:center; gap:10px;">
-            <img src="logo_itc.png" width="50">
-            <h2 style="margin:0;">ITC Deportes</h2>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    with st.sidebar:
+        col1, col2 = st.columns([1, 6])
+    
+    with col1:
+        st.image("logo_itc.png", width=60)
+    
+    with col2:
+        st.markdown("## ITC Deportes")
     st.markdown("---")
     if st.button(f"{T()['ico']} {T()['lbl']}", key="btn_tema"):
         st.session_state.tema = "verde" if st.session_state.tema == "oscuro" else "oscuro"
