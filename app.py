@@ -156,7 +156,7 @@ def lbl_sec(txt):
     return f'<div style="font-size:0.7rem;font-weight:700;letter-spacing:2px;color:{T()["tx3"]};text-transform:uppercase;margin-bottom:10px;">{txt}</div>'
 
 def dep_badge(dep):
-    ico = ICONOS_DEP.get(dep, "🏅")
+    ico = ICONOS_DEP.get(dep, "🎖️")
     return f'<span style="background:{T()["ac"]};color:{T()["bfg"]};padding:4px 14px;border-radius:20px;font-weight:700;font-size:0.85rem;">{ico} {dep}</span>'
 
 def render_tabla(categoria, deporte):
@@ -233,14 +233,14 @@ with st.sidebar:
             st.session_state.rol = "invitado"
             st.session_state.usuario = None
     st.markdown("---")
-    torneo = st.radio("Torneo", ["🏆 Intercolegiados","🎯 Intercursos"], key="torneo_sel")
-    if torneo == "🎯 Intercursos":
+    torneo = st.radio("Torneo", ["🏆 Intercolegiados","🏅 Intercursos"], key="torneo_sel")
+    if torneo == "🏅 Intercursos":
         st.markdown("**Categoría**")
         categoria = st.radio("cat", ["PRIMERA","SEGUNDA","TERCERA"],
                              label_visibility="collapsed", key="cat_sel")
         st.caption({"PRIMERA":"Grados 6° y 7°","SEGUNDA":"Grados 8° y 9°","TERCERA":"Grados 10° y 11°"}.get(categoria,""))
         st.markdown("**Deporte**")
-        dep_raw = st.radio("dep", [f"{ICONOS_DEP.get(d,'🏅')} {d}" for d in DEPORTES],
+        dep_raw = st.radio("dep", [f"{ICONOS_DEP.get(d,'🎖️')} {d}" for d in DEPORTES],
                            label_visibility="collapsed", key="dep_sel")
         deporte = dep_raw.split(" ",1)[1] if " " in dep_raw else dep_raw
     else:
@@ -322,7 +322,7 @@ if torneo == "🏆 Intercolegiados":
 #  INTERCURSOS
 # ═════════════════════════════════════════════════════════════════════════════
 else:
-    st.markdown(f"<h2 style='color:{T()['ac']};'>🎯 Intercursos — {categoria}</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='color:{T()['ac']};'>🏅 Intercursos — {categoria}</h2>", unsafe_allow_html=True)
     st.markdown(f"<p style='color:{T()['tx3']};margin-top:-12px;'>{'Grados 6° y 7°' if categoria=='PRIMERA' else 'Grados 8° y 9°' if categoria=='SEGUNDA' else 'Grados 10° y 11°'} &nbsp;·&nbsp; {ICONOS_DEP.get(deporte,'')} {deporte}</p>", unsafe_allow_html=True)
 
     if st.session_state.rol == "profesor":
