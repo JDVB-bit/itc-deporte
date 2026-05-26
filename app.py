@@ -207,7 +207,8 @@ def render_tabla(categoria, deporte):
     </div>""", unsafe_allow_html=True)
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
-    st.markdown("## 🙊 ITC Deportes")
+with st.sidebar:
+    st.markdown("## ⚽ ITC Deportes")
     st.markdown("---")
     if st.button(f"{T()['ico']} {T()['lbl']}", key="btn_tema"):
         st.session_state.tema = "verde" if st.session_state.tema == "oscuro" else "oscuro"
