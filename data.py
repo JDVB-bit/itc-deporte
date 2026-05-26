@@ -3,6 +3,7 @@ data.py — ITC Deportes con Supabase
 Sin cache de datos. Sin diccionario de equipos predefinidos.
 """
 import json, random, datetime, re
+import bcrypt
 import streamlit as st
 from supabase import create_client, Client
 
@@ -17,8 +18,6 @@ CATEGORIAS_LOCAL = {
 
 DEPORTES   = ["Balonmano", "Microfutbol", "Baloncesto", "Voleyball"]
 ICONOS_DEP = {"Balonmano":"🤾","Microfutbol":"⚽","Baloncesto":"🏀","Voleyball":"🏐"}
-USUARIOS      = {"admin": "1234"}
-USUARIOS_TIPO = {"admin": "profesor"}
 
 CURSOS_VALIDOS = set(
     generar_cursos(6,9) + generar_cursos(7,8) +
@@ -33,15 +32,34 @@ def get_supabase() -> Client:
 def db() -> Client:
     return get_supabase()
 
+# ── Login ────────────────────────────────────────────────────────────────────
+
+def verificar_login(username: str, password: str):
+    """Retorna el tipo de usuario si las credenciales son válidas, o None."""
+    try:
+        res = db().table("usuarios") \
+                  .select("password_hash,tipo,activo") \
+                  .eq("username", username).execute()
+        if not res.data:
+            return None
+        row = res.data[0]
+        if not row["activo"]:
+            return None
+        pwd_bytes  = password.encode("utf-8")
+        hash_bytes = row["password_hash"].encode("utf-8")
+        if bcrypt.checkpw(pwd_bytes, hash_bytes):
+            return row["tipo"]
+        return None
+    except Exception:
+        return None
+
 # ── Parseo robusto de enfrentamientos ────────────────────────────────────────
 
 def parsear_lado(texto):
     texto = str(texto).strip()
-    # Formato tupla Python: ('Nombre', '601') o con (?) al final
     m = re.match(r"^[\(\[]\s*['\"](.+?)['\"]\s*,\s*['\"](.+?)['\"]\s*[\)\]](\s*\(\?\))?$", texto)
     if m:
         return m.group(1).strip(), m.group(2).strip()
-    # Formato normal: Nombre (601)
     ultimo = texto.rfind("(")
     if ultimo != -1 and texto.endswith(")"):
         nombre = texto[:ultimo].strip()
