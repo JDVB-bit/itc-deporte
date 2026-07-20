@@ -10,8 +10,16 @@ from itc_deporte.domain.competicion import (
     FaseDeGrupos,
     FaseEliminatoria,
     Grupo,
+    ReglasDeCompeticion,
 )
+from itc_deporte.domain.enfrentamiento import Marcador
 from itc_deporte.domain.errores import ErrorDeDominio
+from itc_deporte.domain.reglas.desempate import (
+    DESEMPATE_CLASICO,
+    PorAFavor,
+    PorPuntos,
+)
+from itc_deporte.domain.reglas.puntuacion import PorSets, VictoriaDerrota
 
 VOLEIBOL = Deporte("voleyball", "Voleyball", "🏐")
 
@@ -253,3 +261,28 @@ class TestIdentidadDeLasEntidades:
     def test_una_fase_rechaza_nombre_vacio(self):
         with pytest.raises(ErrorDeDominio):
             Fase("f1", "   ", 0)
+
+
+class TestReglasDeCompeticion:
+    def test_por_defecto_reproduce_las_reglas_del_sistema_anterior(self):
+        """3/1/0 y desempate por puntos, diferencia y a favor."""
+        reglas = ReglasDeCompeticion()
+        assert reglas.puntuacion == VictoriaDerrota()
+        assert reglas.desempate == DESEMPATE_CLASICO
+
+    def test_una_competicion_nueva_las_lleva_puestas(self):
+        assert competicion().reglas.puntuacion.puntos(Marcador(2, 1)) == (3, 0)
+
+    def test_el_voleibol_solo_cambia_la_puntuacion(self):
+        """El resto de la competición no se entera."""
+        voley = competicion(reglas=ReglasDeCompeticion(puntuacion=PorSets()))
+        assert voley.reglas.puntuacion.puntos(Marcador(3, 2)) == (2, 1)
+        assert voley.reglas.desempate == DESEMPATE_CLASICO
+
+    def test_admite_otro_orden_de_desempate(self):
+        reglas = ReglasDeCompeticion(desempate=(PorPuntos(), PorAFavor()))
+        assert len(reglas.desempate) == 2
+
+    def test_rechaza_quedarse_sin_criterios_de_desempate(self):
+        with pytest.raises(ErrorDeDominio):
+            ReglasDeCompeticion(desempate=())

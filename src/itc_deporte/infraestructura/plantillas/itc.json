@@ -1,0 +1,380 @@
+{
+  "divisiones": [
+    {
+      "id": "PRIMERA",
+      "nombre": "Primera"
+    },
+    {
+      "id": "601",
+      "nombre": "601",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "602",
+      "nombre": "602",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "603",
+      "nombre": "603",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "604",
+      "nombre": "604",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "605",
+      "nombre": "605",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "606",
+      "nombre": "606",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "607",
+      "nombre": "607",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "608",
+      "nombre": "608",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "609",
+      "nombre": "609",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "701",
+      "nombre": "701",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "702",
+      "nombre": "702",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "703",
+      "nombre": "703",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "704",
+      "nombre": "704",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "705",
+      "nombre": "705",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "706",
+      "nombre": "706",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "707",
+      "nombre": "707",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "708",
+      "nombre": "708",
+      "padre_id": "PRIMERA"
+    },
+    {
+      "id": "SEGUNDA",
+      "nombre": "Segunda"
+    },
+    {
+      "id": "801",
+      "nombre": "801",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "802",
+      "nombre": "802",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "803",
+      "nombre": "803",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "804",
+      "nombre": "804",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "805",
+      "nombre": "805",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "806",
+      "nombre": "806",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "807",
+      "nombre": "807",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "808",
+      "nombre": "808",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "901",
+      "nombre": "901",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "902",
+      "nombre": "902",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "903",
+      "nombre": "903",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "904",
+      "nombre": "904",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "905",
+      "nombre": "905",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "906",
+      "nombre": "906",
+      "padre_id": "SEGUNDA"
+    },
+    {
+      "id": "TERCERA",
+      "nombre": "Tercera"
+    },
+    {
+      "id": "1001",
+      "nombre": "1001",
+      "padre_id": "TERCERA"
+    },
+    {
+      "id": "1002",
+      "nombre": "1002",
+      "padre_id": "TERCERA"
+    },
+    {
+      "id": "1003",
+      "nombre": "1003",
+      "padre_id": "TERCERA"
+    },
+    {
+      "id": "1101",
+      "nombre": "1101",
+      "padre_id": "TERCERA"
+    },
+    {
+      "id": "1102",
+      "nombre": "1102",
+      "padre_id": "TERCERA"
+    },
+    {
+      "id": "1103",
+      "nombre": "1103",
+      "padre_id": "TERCERA"
+    },
+    {
+      "id": "1104",
+      "nombre": "1104",
+      "padre_id": "TERCERA"
+    }
+  ],
+  "plantillas": [
+    {
+      "id": "itc-balonmano",
+      "nombre": "Intercursos ITC — Balonmano",
+      "descripcion": "Configuración del Instituto Técnico Central: categorías por curso, siete jornadas los sábados y cuadro final a 16.",
+      "es_semilla": true,
+      "deporte": {
+        "id": "balonmano",
+        "nombre": "Balonmano",
+        "icono": "🤾"
+      },
+      "puntuacion": {
+        "tipo": "victoria_derrota"
+      },
+      "desempate": [
+        "puntos",
+        "diferencia",
+        "a_favor"
+      ],
+      "fases": [
+        {
+          "tipo": "grupos",
+          "nombre": "Fase de grupos",
+          "orden": 0,
+          "fixture": "round_robin",
+          "config_fixture": {
+            "vueltas": 1,
+            "jornadas_forzadas": 7
+          }
+        },
+        {
+          "tipo": "eliminatoria",
+          "nombre": "Eliminación directa",
+          "orden": 1,
+          "fixture": "eliminacion_directa",
+          "cupos": 16
+        }
+      ],
+      "calendario": {
+        "dia_de_la_semana": 5,
+        "hora": "15:00",
+        "cadencia_dias": 7
+      }
+    },
+    {
+      "id": "itc-microfutbol",
+      "nombre": "Intercursos ITC — Microfutbol",
+      "descripcion": "Configuración del Instituto Técnico Central: categorías por curso, siete jornadas los sábados y cuadro final a 16.",
+      "es_semilla": true,
+      "deporte": {
+        "id": "microfutbol",
+        "nombre": "Microfutbol",
+        "icono": "⚽"
+      },
+      "puntuacion": {
+        "tipo": "victoria_derrota"
+      },
+      "desempate": [
+        "puntos",
+        "diferencia",
+        "a_favor"
+      ],
+      "fases": [
+        {
+          "tipo": "grupos",
+          "nombre": "Fase de grupos",
+          "orden": 0,
+          "fixture": "round_robin",
+          "config_fixture": {
+            "vueltas": 1,
+            "jornadas_forzadas": 7
+          }
+        },
+        {
+          "tipo": "eliminatoria",
+          "nombre": "Eliminación directa",
+          "orden": 1,
+          "fixture": "eliminacion_directa",
+          "cupos": 16
+        }
+      ],
+      "calendario": {
+        "dia_de_la_semana": 5,
+        "hora": "15:00",
+        "cadencia_dias": 7
+      }
+    },
+    {
+      "id": "itc-baloncesto",
+      "nombre": "Intercursos ITC — Baloncesto",
+      "descripcion": "Configuración del Instituto Técnico Central: categorías por curso, siete jornadas los sábados y cuadro final a 16.",
+      "es_semilla": true,
+      "deporte": {
+        "id": "baloncesto",
+        "nombre": "Baloncesto",
+        "icono": "🏀"
+      },
+      "puntuacion": {
+        "tipo": "victoria_derrota"
+      },
+      "desempate": [
+        "puntos",
+        "diferencia",
+        "a_favor"
+      ],
+      "fases": [
+        {
+          "tipo": "grupos",
+          "nombre": "Fase de grupos",
+          "orden": 0,
+          "fixture": "round_robin",
+          "config_fixture": {
+            "vueltas": 1,
+            "jornadas_forzadas": 7
+          }
+        },
+        {
+          "tipo": "eliminatoria",
+          "nombre": "Eliminación directa",
+          "orden": 1,
+          "fixture": "eliminacion_directa",
+          "cupos": 16
+        }
+      ],
+      "calendario": {
+        "dia_de_la_semana": 5,
+        "hora": "15:00",
+        "cadencia_dias": 7
+      }
+    },
+    {
+      "id": "itc-voleyball",
+      "nombre": "Intercursos ITC — Voleyball",
+      "descripcion": "Configuración del Instituto Técnico Central: categorías por curso, siete jornadas los sábados y cuadro final a 16.",
+      "es_semilla": true,
+      "deporte": {
+        "id": "voleyball",
+        "nombre": "Voleyball",
+        "icono": "🏐"
+      },
+      "puntuacion": {
+        "tipo": "por_sets"
+      },
+      "desempate": [
+        "puntos",
+        "diferencia",
+        "a_favor"
+      ],
+      "fases": [
+        {
+          "tipo": "grupos",
+          "nombre": "Fase de grupos",
+          "orden": 0,
+          "fixture": "round_robin",
+          "config_fixture": {
+            "vueltas": 1,
+            "jornadas_forzadas": 7
+          }
+        },
+        {
+          "tipo": "eliminatoria",
+          "nombre": "Eliminación directa",
+          "orden": 1,
+          "fixture": "eliminacion_directa",
+          "cupos": 16
+        }
+      ],
+      "calendario": {
+        "dia_de_la_semana": 5,
+        "hora": "15:00",
+        "cadencia_dias": 7
+      }
+    }
+  ]
+}

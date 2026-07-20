@@ -19,6 +19,8 @@ from typing import NewType
 
 from .errores import ErrorDeDominio
 from .participante import ParticipanteId
+from .reglas.desempate import DESEMPATE_CLASICO, CriterioDeDesempate
+from .reglas.puntuacion import SistemaDePuntuacion, VictoriaDerrota
 
 CompeticionId = NewType("CompeticionId", str)
 FaseId = NewType("FaseId", str)
@@ -155,6 +157,25 @@ class EstadoCompeticion(Enum):
     FINALIZADA = "Finalizada"
 
 
+@dataclass(frozen=True, slots=True)
+class ReglasDeCompeticion:
+    """Cómo puntúa y cómo desempata esta competición.
+
+    Los valores por defecto reproducen lo que el sistema aplicaba a todo: 3/1/0
+    y desempate por puntos, diferencia y a favor. Una competición de voleibol
+    cambia la puntuación sin que nada más se entere.
+    """
+
+    puntuacion: SistemaDePuntuacion = VictoriaDerrota()
+    desempate: tuple[CriterioDeDesempate, ...] = DESEMPATE_CLASICO
+
+    def __post_init__(self) -> None:
+        if not self.desempate:
+            raise ErrorDeDominio(
+                "Una competición necesita al menos un criterio de desempate."
+            )
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class Competicion:
     id: CompeticionId
@@ -163,6 +184,7 @@ class Competicion:
     temporada: str | None = None
     estado: EstadoCompeticion = EstadoCompeticion.BORRADOR
     fases: tuple[Fase, ...] = ()
+    reglas: ReglasDeCompeticion = ReglasDeCompeticion()
 
     def __post_init__(self) -> None:
         if not self.id:
