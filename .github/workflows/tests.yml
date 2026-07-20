@@ -1,0 +1,31 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . -r requirements-dev.txt
+
+      # La regla de dependencia de Clean Architecture se erosiona por descuido,
+      # no por decisión. Se comprueba aquí, por separado y antes que el resto,
+      # para que una violación se lea de un vistazo en el registro.
+      - name: Verificar la regla de dependencia
+        run: pytest tests/test_arquitectura.py
+
+      - name: Suite completa
+        run: pytest --cov=itc_deporte --cov-report=term-missing
