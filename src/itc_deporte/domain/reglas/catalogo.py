@@ -11,7 +11,8 @@ sin que nada más cambie.
 
 from __future__ import annotations
 
-from typing import Callable, Mapping
+from dataclasses import asdict, is_dataclass
+from typing import Any, Callable, Mapping
 
 from ..errores import ReglaInvalida
 from .desempate import (
@@ -79,3 +80,68 @@ def crear_desempate(
 
 def crear_fixture(tipo: str) -> GeneradorDeFixture:
     return _buscar(FIXTURES, tipo, "un generador de fixture")()
+
+
+# ── El camino de vuelta ─────────────────────────────────────────────────────
+# Crear una regla desde su nombre no basta: para guardar una competición hay que
+# convertir sus reglas —que son objetos— de nuevo en nombre y parámetros. Las
+# dos direcciones se prueban juntas con un round-trip, de modo que registrar una
+# regla nueva y olvidarse de una de las dos mitades se detecta.
+
+NOMBRES_DE_PUNTUACION: Mapping[type, str] = {
+    VictoriaDerrota: "victoria_derrota",
+    PorSets: "por_sets",
+}
+
+NOMBRES_DE_DESEMPATE: Mapping[type, str] = {
+    PorPuntos: "puntos",
+    PorDiferencia: "diferencia",
+    PorAFavor: "a_favor",
+    PorEnContra: "en_contra",
+    PorPartidosGanados: "partidos_ganados",
+    PorEnfrentamientoDirecto: "enfrentamiento_directo",
+}
+
+NOMBRES_DE_FIXTURE: Mapping[type, str] = {
+    RoundRobin: "round_robin",
+    EliminacionDirecta: "eliminacion_directa",
+}
+
+
+def _nombrar(registro: Mapping[type, str], objeto: object, familia: str) -> str:
+    nombre = registro.get(type(objeto))
+    if nombre is None:
+        raise ReglaInvalida(
+            f"{type(objeto).__name__} no está registrada como {familia}, así que "
+            "no se puede guardar. Añádela al catálogo."
+        )
+    return nombre
+
+
+def nombre_de_puntuacion(puntuacion: SistemaDePuntuacion) -> str:
+    return _nombrar(NOMBRES_DE_PUNTUACION, puntuacion, "sistema de puntuación")
+
+
+def nombre_de_desempate(criterio: CriterioDeDesempate) -> str:
+    return _nombrar(NOMBRES_DE_DESEMPATE, criterio, "criterio de desempate")
+
+
+def nombre_de_fixture(generador: GeneradorDeFixture) -> str:
+    return _nombrar(NOMBRES_DE_FIXTURE, generador, "generador de fixture")
+
+
+def parametros_de(regla: object) -> dict[str, Any]:
+    """Los parámetros de una regla, listos para JSON.
+
+    Se descartan los que sean a su vez reglas: el enfrentamiento directo compone
+    un sistema de puntuación, y ese no se guarda dos veces —se reconstruye desde
+    el de la competición.
+    """
+    if not is_dataclass(regla):
+        return {}
+    crudos = asdict(regla)
+    return {
+        clave: valor
+        for clave, valor in crudos.items()
+        if isinstance(valor, (int, float, str, bool, type(None)))
+    }

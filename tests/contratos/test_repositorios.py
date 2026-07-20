@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import pytest
 
+from itc_deporte.aplicacion.permisos import Concesion, Rol
 from itc_deporte.aplicacion.puertos import (
     RepositorioDeCompeticiones,
+    RepositorioDeConcesiones,
     RepositorioDeEnfrentamientos,
     RepositorioDeParticipantes,
     RepositorioDePlantillas,
@@ -24,6 +26,7 @@ from itc_deporte.domain.competicion import Competicion, Deporte, FaseDeGrupos
 from itc_deporte.domain.enfrentamiento import Enfrentamiento, Marcador
 from itc_deporte.domain.participante import Participante
 from itc_deporte.domain.plantilla import PlantillaDeCompeticion
+from itc_deporte.infraestructura.autenticacion import ConcesionesEnMemoria
 from itc_deporte.infraestructura.memoria import (
     CompeticionesEnMemoria,
     EnfrentamientosEnMemoria,
@@ -234,6 +237,56 @@ class ContratoDePlantillas:
         assert repositorio.obtener("fantasma") is None
 
 
+# ── Concesiones ──────────────────────────────────────────────────────────────
+
+
+class ContratoDeConcesiones:
+    @pytest.fixture
+    def repositorio(self) -> RepositorioDeConcesiones:
+        raise NotImplementedError
+
+    def test_satisface_el_puerto(self, repositorio):
+        assert isinstance(repositorio, RepositorioDeConcesiones)
+
+    def test_lo_otorgado_se_consulta_por_usuario(self, repositorio):
+        repositorio.otorgar(Concesion("u1", Rol.REGISTRADOR, "c1"))
+        assert len(repositorio.de_usuario("u1")) == 1
+
+    def test_y_por_competicion(self, repositorio):
+        repositorio.otorgar(Concesion("u1", Rol.REGISTRADOR, "c1"))
+        assert len(repositorio.de_competicion("c1")) == 1
+
+    def test_un_usuario_sin_concesiones_da_vacio(self, repositorio):
+        assert repositorio.de_usuario("nadie") == ()
+
+    def test_otorgar_dos_veces_no_duplica(self, repositorio):
+        for _ in range(2):
+            repositorio.otorgar(Concesion("u1", Rol.REGISTRADOR, "c1"))
+        assert len(repositorio.de_usuario("u1")) == 1
+
+    def test_conserva_el_rol(self, repositorio):
+        repositorio.otorgar(Concesion("u1", Rol.REGISTRADOR, "c1"))
+        assert repositorio.de_usuario("u1")[0].rol is Rol.REGISTRADOR
+
+    def test_una_concesion_global_no_lleva_competicion(self, repositorio):
+        repositorio.otorgar(Concesion("u1", Rol.ADMIN))
+        assert repositorio.de_usuario("u1")[0].competicion_id is None
+
+    def test_revocar_una_competicion_no_toca_las_demas(self, repositorio):
+        repositorio.otorgar(Concesion("u1", Rol.REGISTRADOR, "c1"))
+        repositorio.otorgar(Concesion("u1", Rol.REGISTRADOR, "c2"))
+        repositorio.revocar("u1", "c1")
+        assert [c.competicion_id for c in repositorio.de_usuario("u1")] == ["c2"]
+
+    def test_revocar_la_global(self, repositorio):
+        repositorio.otorgar(Concesion("u1", Rol.ADMIN))
+        repositorio.revocar("u1")
+        assert repositorio.de_usuario("u1") == ()
+
+    def test_revocar_lo_que_no_existe_no_revienta(self, repositorio):
+        repositorio.revocar("nadie", "c1")
+
+
 # ── Implementaciones ─────────────────────────────────────────────────────────
 
 
@@ -253,6 +306,12 @@ class TestEnfrentamientosEnMemoria(ContratoDeEnfrentamientos):
     @pytest.fixture
     def repositorio(self):
         return EnfrentamientosEnMemoria()
+
+
+class TestConcesionesEnMemoria(ContratoDeConcesiones):
+    @pytest.fixture
+    def repositorio(self):
+        return ConcesionesEnMemoria()
 
 
 class TestPlantillasEnMemoria(ContratoDePlantillas):
