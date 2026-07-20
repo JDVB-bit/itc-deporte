@@ -21,4 +21,7 @@ ESQUEMA = _AQUI / "esquema.sql"
 #: Concesiones y políticas RLS. Se aplica después de `esquema.sql`.
 PERMISOS = _AQUI / "permisos.sql"
 
-__all__ = ["ESQUEMA", "PERMISOS"]
+#: El corte: retira las tablas viejas. Rompe la aplicación anterior.
+CORTE = _AQUI / "corte.sql"
+
+__all__ = ["CORTE", "ESQUEMA", "PERMISOS"]

@@ -9,8 +9,10 @@
 -- la que se sustituye la tabla `usuarios` con bcrypt propio, que no tenía forma
 -- de hacerse visible dentro de Postgres.
 --
--- NO SE HA EJECUTADO todavía contra ninguna instancia. Se aplica en la Fase 7,
--- junto con el resto de la migración.
+-- NO SE HA EJECUTADO todavía contra ninguna instancia.
+--
+-- `logros` y su política viven en `corte.sql`: esa tabla choca con la del
+-- sistema viejo, así que solo puede crearse cuando aquella se retire.
 
 -- ── Concesiones ─────────────────────────────────────────────────────────────
 
@@ -69,7 +71,6 @@ alter table grupos         enable row level security;
 alter table inscripciones_en_grupo enable row level security;
 alter table enfrentamientos enable row level security;
 alter table marcadores     enable row level security;
-alter table logros         enable row level security;
 alter table concesiones    enable row level security;
 
 create policy "lectura publica" on deportes       for select using (true);
@@ -82,7 +83,6 @@ create policy "lectura publica" on grupos         for select using (true);
 create policy "lectura publica" on inscripciones_en_grupo for select using (true);
 create policy "lectura publica" on enfrentamientos for select using (true);
 create policy "lectura publica" on marcadores     for select using (true);
-create policy "lectura publica" on logros         for select using (true);
 
 -- Solo el admin toca el catálogo y la estructura de las competiciones.
 create policy "solo admin" on deportes      for all using (es_admin()) with check (es_admin());
@@ -90,7 +90,6 @@ create policy "solo admin" on competiciones for all using (es_admin()) with chec
 create policy "solo admin" on divisiones    for all using (es_admin()) with check (es_admin());
 create policy "solo admin" on fases         for all using (es_admin()) with check (es_admin());
 create policy "solo admin" on grupos        for all using (es_admin()) with check (es_admin());
-create policy "solo admin" on logros        for all using (es_admin()) with check (es_admin());
 
 -- El registrador escribe participantes y resultados, solo en lo suyo.
 create policy "registrador de la competicion" on participantes
