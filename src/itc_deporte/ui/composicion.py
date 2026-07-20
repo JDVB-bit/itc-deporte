@@ -62,6 +62,16 @@ class Servicios:
     es_demostracion: bool
 
 
+#: Quién existe en la demostración, para poder probar el sistema desde cada
+#: papel sin dar de alta a nadie. En producción no hay atajo: el primer
+#: administrador se crea desde el panel de Supabase (ver `docs/FASE_7.md`).
+PAPELES_DE_DEMOSTRACION = (
+    ("demo-admin", "🛠️ Administrador", "Crea competiciones, sortea y reparte permisos."),
+    ("demo-registrador", "✍️ Registrador", "Inscribe y carga resultados, solo en Microfútbol."),
+    (None, "👤 Visitante", "Consulta tablas, calendarios y cuadros."),
+)
+
+
 def construir(secretos: Any = None) -> Servicios:
     """Arma los servicios.
 
@@ -167,15 +177,23 @@ def _en_memoria():
         ParticipantesEnMemoria,
     )
 
-    profesora = Identidad("demo-admin", "demo@itc.edu.co")
+    admin = Identidad("demo-admin", "admin@itc.edu.co")
+    registrador = Identidad("demo-registrador", "profe@itc.edu.co")
     repositorios = (
         CompeticionesEnMemoria(),
         ParticipantesEnMemoria(),
         EnfrentamientosEnMemoria(),
-        ConcesionesEnMemoria([Concesion("demo-admin", Rol.ADMIN)]),
+        ConcesionesEnMemoria(
+            [
+                Concesion("demo-admin", Rol.ADMIN),
+                # Solo sobre una de las dos competiciones, para que se note que
+                # la concesión tiene alcance.
+                Concesion("demo-registrador", Rol.REGISTRADOR, "demo-micro"),
+            ]
+        ),
     )
-    autenticador = AutenticadorEnMemoria([profesora])
-    _sembrar(repositorios, profesora)
+    autenticador = AutenticadorEnMemoria([admin, registrador])
+    _sembrar(repositorios, admin)
     return repositorios, autenticador, True
 
 

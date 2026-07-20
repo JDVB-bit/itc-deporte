@@ -44,6 +44,14 @@ class AutenticadorEnMemoria:
     def __init__(self, identidades: Iterable[Identidad] = ()) -> None:
         self._por_id = {i.usuario_id: i for i in identidades}
 
+    def iniciar_sesion(self, email: str, contrasena: str) -> Identidad | None:
+        """Sin contraseñas: basta con que el correo exista.
+
+        Los tests prueban permisos, no criptografía; comprobar una contraseña
+        aquí solo añadiría ruido.
+        """
+        return self.por_email(email.strip())
+
     def identificar(self, token: str) -> Identidad | None:
         """El token es el propio id de usuario, que basta para probar permisos."""
         return self._por_id.get(token)

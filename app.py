@@ -15,7 +15,7 @@ import streamlit as st
 from itc_deporte.aplicacion.permisos import ANONIMO, Accion, Identidad, Rol
 from itc_deporte.domain.competicion import FaseDeGrupos, FaseEliminatoria
 from itc_deporte.ui import construir, tema, vistas
-from itc_deporte.ui.composicion import BaseSinPreparar
+from itc_deporte.ui.composicion import PAPELES_DE_DEMOSTRACION, BaseSinPreparar
 
 st.set_page_config(
     page_title="ITC Deportes",
@@ -56,6 +56,32 @@ def actor() -> Identidad:
     return identidad or ANONIMO
 
 
+def _selector_de_papel(yo: Identidad) -> None:
+    """En la demostración se puede mirar el sistema desde cada papel.
+
+    No es una pantalla de registro: el sistema no tiene registro a propósito.
+    Un visitante no necesita cuenta, y las cuentas de quien administra o
+    registra se conceden, no se piden. Esto existe solo para poder probar la
+    aplicación sin dar de alta a nadie.
+    """
+    st.warning(
+        "**Modo demostración.** Los datos son de muestra y nada se guarda.",
+        icon="⚠️",
+    )
+    st.caption("Pruébalo desde cada papel:")
+    for usuario_id, etiqueta, explicacion in PAPELES_DE_DEMOSTRACION:
+        soy_yo = (yo.usuario_id if yo is not ANONIMO else None) == usuario_id
+        if st.button(
+            f"{'● ' if soy_yo else ''}{etiqueta}",
+            key=f"papel-{usuario_id}",
+            width="stretch",
+            disabled=soy_yo,
+            help=explicacion,
+        ):
+            st.session_state.usuario_id = usuario_id
+            st.rerun()
+
+
 def barra_lateral(yo: Identidad):
     with st.sidebar:
         st.markdown("## ITC Deportes")
@@ -65,27 +91,25 @@ def barra_lateral(yo: Identidad):
         st.markdown("---")
 
         if SERVICIOS.es_demostracion:
-            st.warning(
-                "**Modo demostración.** Sin conexión a Supabase: los datos son "
-                "de muestra y nada de lo que hagas se guarda.",
-                icon="⚠️",
-            )
-            if yo is ANONIMO and st.button("Entrar como administrador"):
-                st.session_state.usuario_id = "demo-admin"
-                st.rerun()
+            _selector_de_papel(yo)
             st.markdown("---")
 
         if yo is ANONIMO:
             st.markdown("**👤 Visitante**")
             st.caption("Puedes consultar tablas, calendarios y cuadros.")
             with st.expander("🔐 Iniciar sesión"):
-                token = st.text_input("Token de sesión", type="password")
-                if st.button("Entrar") and token:
-                    if SERVICIOS.autenticador.identificar(token):
-                        st.session_state.usuario_id = token
-                        st.rerun()
-                    else:
-                        st.error("No se pudo identificar.")
+                with st.form("acceso"):
+                    correo = st.text_input("Correo")
+                    contrasena = st.text_input("Contraseña", type="password")
+                    if st.form_submit_button("Entrar") and correo:
+                        identidad = SERVICIOS.autenticador.iniciar_sesion(
+                            correo, contrasena
+                        )
+                        if identidad:
+                            st.session_state.usuario_id = identidad.usuario_id
+                            st.rerun()
+                        else:
+                            st.error("Correo o contraseña incorrectos.")
         else:
             st.markdown(f"**★ {yo.email or yo.usuario_id}**")
             roles = SERVICIOS.politica.roles_de(yo)

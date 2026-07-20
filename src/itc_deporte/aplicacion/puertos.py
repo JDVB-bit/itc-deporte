@@ -90,6 +90,10 @@ class Autenticador(Protocol):
     el proveedor se encarga del resto.
     """
 
+    def iniciar_sesion(self, email: str, contrasena: str) -> Identidad | None:
+        """Identidad de quien acierta sus credenciales, o `None`."""
+        ...
+
     def identificar(self, token: str) -> Identidad | None:
         """Identidad tras un token de sesión, o `None` si no vale."""
         ...

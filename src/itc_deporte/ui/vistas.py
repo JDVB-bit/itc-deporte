@@ -27,6 +27,11 @@ def _ejecutar(accion, *args, exito: str = "Hecho.", **kwargs) -> bool:
     Los tres tipos que puede lanzar el sistema tienen significados distintos y
     merecen mensajes distintos: sin permiso, operación improcedente, o dato
     incoherente.
+
+    Quien llama **no debe** rehacer la página tras un acierto: Streamlit ya la
+    redibuja al enviar un formulario o pulsar un botón, y un `st.rerun()`
+    adicional borra este aviso en el mismo instante en que aparece, con lo que
+    la acción parece no haber hecho nada.
     """
     try:
         accion(*args, **kwargs)
@@ -39,7 +44,7 @@ def _ejecutar(accion, *args, exito: str = "Hecho.", **kwargs) -> bool:
     except ErrorDeDominio as error:
         st.warning(str(error))
         return False
-    st.success(exito)
+    st.success(exito, icon="✅")
     return True
 
 
@@ -255,43 +260,57 @@ def _casilla_del_cuadro(
 
 
 def participantes(servicios, competicion, actor: Identidad) -> None:
-    inscritos = servicios.inscripciones.inscritos(competicion.id)
+    """Lista e inscripción.
+
+    La tabla se reserva con un hueco y se rellena **después** del formulario.
+    Streamlit ejecuta el guion de arriba abajo: si se dibujara antes, mostraría
+    la lista de antes de inscribir, y quien acabara de añadir un equipo no lo
+    vería hasta la siguiente interacción.
+    """
     puede = servicios.politica.puede(
         actor, Accion.INSCRIBIR_PARTICIPANTE, competicion.id
     )
+    hueco_de_la_tabla = st.empty()
 
-    if inscritos:
-        st.dataframe(
-            [
-                {"Equipo": p.nombre, "División": p.division_id or "—",
-                 "Integrantes": len(p.miembros)}
-                for p in inscritos
-            ],
-            hide_index=True,
-            width="stretch",
-        )
-    else:
-        st.info("Todavía no hay participantes inscritos.")
-
-    if not puede:
-        return
-
-    with st.form("inscribir", clear_on_submit=True):
-        tema.seccion("Inscribir participante")
-        nombre = st.text_input("Nombre del equipo")
-        division = st.text_input("División o curso", placeholder="601")
-        if st.form_submit_button("Inscribir") and nombre.strip():
-            nuevo = f"{competicion.id}:{len(inscritos) + 1}:{nombre.strip().lower()}"
-            if _ejecutar(
+    if puede:
+        with st.form("inscribir", clear_on_submit=True):
+            tema.seccion("Inscribir participante")
+            nombre = st.text_input("Nombre del equipo")
+            division = st.text_input("División o curso", placeholder="601")
+            enviado = st.form_submit_button("Inscribir")
+        if enviado and nombre.strip():
+            _ejecutar(
                 servicios.inscripciones.inscribir,
                 actor,
                 competicion.id,
-                nuevo,
+                f"{competicion.id}:{nombre.strip().lower().replace(' ', '-')}",
                 nombre,
                 division.strip() or None,
                 exito=f"{nombre} inscrito.",
-            ):
-                st.rerun()
+            )
+        elif enviado:
+            st.warning("Escribe el nombre del equipo.")
+
+    inscritos = servicios.inscripciones.inscritos(competicion.id)
+    with hueco_de_la_tabla.container():
+        if inscritos:
+            st.dataframe(
+                [
+                    {
+                        "Equipo": p.nombre,
+                        "División": p.division_id or "—",
+                        "Integrantes": len(p.miembros),
+                    }
+                    for p in inscritos
+                ],
+                hide_index=True,
+                width="stretch",
+            )
+        else:
+            st.info(
+                "Todavía no hay participantes inscritos."
+                + ("" if puede else " Un administrador o registrador puede añadirlos.")
+            )
 
 
 # ── Administración ──────────────────────────────────────────────────────────

@@ -52,6 +52,20 @@ class AutenticadorSupabase:
     def __init__(self, cliente: ClienteSupabase) -> None:
         self._cliente = cliente
 
+    def iniciar_sesion(self, email: str, contrasena: str) -> Identidad | None:
+        """Correo y contraseña contra Supabase Auth.
+
+        Unas credenciales que no valen no son un error del sistema: son alguien
+        que se equivocó al escribir.
+        """
+        try:
+            respuesta = self._cliente.auth.sign_in_with_password(
+                {"email": email.strip(), "password": contrasena}
+            )
+        except Exception:
+            return None
+        return _a_identidad(getattr(respuesta, "user", None))
+
     def identificar(self, token: str) -> Identidad | None:
         """Identidad tras un JWT de sesión, o `None` si no vale."""
         if not token:

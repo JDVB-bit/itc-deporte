@@ -16,15 +16,16 @@ import pytest
 AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 
 
-def abrir(*, como_admin: bool = False):
+def abrir(*, papel: str | None = None):
+    """Abre la app; con `papel` entra desde el selector de la demostración."""
     app = AppTest.from_file("app.py", default_timeout=60).run()
-    if como_admin:
-        _entrar(app)
+    if papel:
+        app = _entrar(app, papel)
     return app
 
 
-def _entrar(app):
-    boton = next(b for b in app.sidebar.button if "administrador" in b.label)
+def _entrar(app, papel: str = "Administrador"):
+    boton = next(b for b in app.sidebar.button if papel in b.label)
     return boton.click().run()
 
 
@@ -37,7 +38,7 @@ def _generar_cuadro() -> str:
 
     Recoge markdown y captions: las etiquetas del cuadro usan las dos.
     """
-    app = abrir(como_admin=True)
+    app = abrir(papel="Administrador")
     generar = next(b for b in app.button if "Generar cuadro" in b.label)
     app = generar.click().run()
     return " ".join(
@@ -80,14 +81,14 @@ class TestLoQueVeUnVisitante:
 
 class TestAcceso:
     def test_entrar_identifica_al_administrador(self):
-        app = abrir(como_admin=True)
-        assert any("demo@itc.edu.co" in m.value for m in app.sidebar.markdown)
+        app = abrir(papel="Administrador")
+        assert any("admin@itc.edu.co" in m.value for m in app.sidebar.markdown)
 
     def test_y_entonces_aparece_la_administracion(self):
-        assert "⚙️ Administrar" in etiquetas(abrir(como_admin=True).tabs)
+        assert "⚙️ Administrar" in etiquetas(abrir(papel="Administrador").tabs)
 
     def test_salir_devuelve_al_modo_visitante(self):
-        app = abrir(como_admin=True)
+        app = abrir(papel="Administrador")
         salir = next(b for b in app.sidebar.button if "Cerrar" in b.label)
         app = salir.click().run()
         assert "⚙️ Administrar" not in etiquetas(app.tabs)
@@ -97,7 +98,7 @@ class TestElCuadroFinalEstaConectado:
     """Lo que el sistema anterior nunca llegó a mostrar."""
 
     def test_el_administrador_puede_generarlo(self):
-        app = abrir(como_admin=True)
+        app = abrir(papel="Administrador")
         generar = next(
             (b for b in app.button if "Generar cuadro" in b.label), None
         )
@@ -164,3 +165,86 @@ class TestNoSeDisfrazaDeProduccion:
         monkeypatch.setenv("SUPABASE_KEY", "x" * 200)
         with pytest.raises(BaseSinPreparar, match="PASO_2.sql"):
             construir(None)
+
+
+class TestAccesoConCorreo:
+    """Un profesor entra con su correo, no con un identificador interno."""
+
+    def test_el_formulario_pide_correo_y_contrasena(self):
+        app = abrir()
+        etiquetas_campos = [c.label for c in app.text_input]
+        assert "Correo" in etiquetas_campos
+        assert "Contraseña" in etiquetas_campos
+
+    def test_un_correo_conocido_identifica(self):
+        app = abrir()
+        app.text_input[0].set_value("admin@itc.edu.co")
+        app = next(b for b in app.button if b.label == "Entrar").click().run()
+        assert any("admin@itc.edu.co" in m.value for m in app.sidebar.markdown)
+
+    def test_un_correo_desconocido_lo_dice(self):
+        app = abrir()
+        app.text_input[0].set_value("nadie@itc.edu.co")
+        app = next(b for b in app.button if b.label == "Entrar").click().run()
+        assert any("incorrect" in e.value.lower() for e in app.error)
+
+
+class TestSePuedeProbarCadaPapel:
+    """El sistema no tiene registro a propósito —un visitante no necesita
+    cuenta y las de administrar o registrar se conceden—, así que la
+    demostración ofrece los tres papeles para poder probarlo."""
+
+    def test_ofrece_los_tres(self):
+        etiquetas_botones = [b.label for b in abrir().sidebar.button]
+        for papel in ("Administrador", "Registrador", "Visitante"):
+            assert any(papel in e for e in etiquetas_botones), papel
+
+    def test_el_administrador_lo_puede_todo(self):
+        app = abrir(papel="Administrador")
+        assert "⚙️ Administrar" in etiquetas(app.tabs)
+
+    def test_el_registrador_carga_resultados_pero_no_administra(self):
+        app = abrir(papel="Registrador")
+        assert "⚙️ Administrar" not in etiquetas(app.tabs)
+        assert any("Inscribir" in b.label for b in app.button)
+
+    def test_el_registrador_no_puede_en_la_competicion_ajena(self):
+        """Su concesión alcanza a Microfútbol, no a Voleyball."""
+        app = abrir(papel="Registrador")
+        app.sidebar.radio[0].set_value(app.sidebar.radio[0].options[1]).run()
+        assert not any("Inscribir" in b.label for b in app.button)
+
+
+class TestInscribir:
+    """Lo que el usuario reportó como «no deja inscribir nada»."""
+
+    def _inscribir(self, app, nombre, division="999"):
+        app.text_input[0].set_value(nombre)
+        app.text_input[1].set_value(division)
+        return next(b for b in app.button if b.label == "Inscribir").click().run()
+
+    def test_el_equipo_queda_inscrito(self):
+        app = self._inscribir(abrir(papel="Administrador"), "Equipo Nuevo")
+        assert any("inscrito" in s.value for s in app.success)
+
+    def test_y_aparece_en_la_lista_sin_tener_que_hacer_nada_mas(self):
+        """La tabla se dibuja antes que el formulario, así que sin reservarle
+        el hueco mostraría la lista de antes de inscribir y parecería que la
+        acción no hizo nada."""
+        app = abrir(papel="Administrador")
+        antes = len(app.dataframe[1].value)
+        app = self._inscribir(app, "Equipo Nuevo")
+        assert len(app.dataframe[1].value) == antes + 1
+
+    def test_un_nombre_repetido_se_rechaza_con_su_motivo(self):
+        app = self._inscribir(abrir(papel="Administrador"), "Los Tigres")
+        assert any("Ya hay un participante" in w.value for w in app.warning)
+
+    def test_sin_nombre_lo_dice_en_vez_de_callarse(self):
+        app = abrir(papel="Administrador")
+        app = next(b for b in app.button if b.label == "Inscribir").click().run()
+        assert any("Escribe el nombre" in w.value for w in app.warning)
+
+    def test_el_registrador_tambien_puede_en_la_suya(self):
+        app = self._inscribir(abrir(papel="Registrador"), "De la Profe")
+        assert any("inscrito" in s.value for s in app.success)
