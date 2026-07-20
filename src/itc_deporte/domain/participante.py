@@ -14,13 +14,12 @@ participante puede renombrarse o cambiar de división sin dejar de ser el mismo.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import NewType
 
 from .errores import ErrorDeDominio
+from .identidades import CompeticionId, DivisionId, MiembroId, ParticipanteId
 
-ParticipanteId = NewType("ParticipanteId", str)
-DivisionId = NewType("DivisionId", str)
-MiembroId = NewType("MiembroId", str)
+
+__all__ = ["DivisionId", "Miembro", "MiembroId", "Participante", "ParticipanteId"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +50,7 @@ class Participante:
 
     id: ParticipanteId
     nombre: str
+    competicion_id: CompeticionId | None = None
     division_id: DivisionId | None = None
     miembros: tuple[Miembro, ...] = ()
 

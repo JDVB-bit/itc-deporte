@@ -15,16 +15,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from enum import Enum
-from typing import NewType
 
 from .errores import ErrorDeDominio
-from .participante import ParticipanteId
+from .identidades import CompeticionId, FaseId, GrupoId, ParticipanteId
 from .reglas.desempate import DESEMPATE_CLASICO, CriterioDeDesempate
 from .reglas.puntuacion import SistemaDePuntuacion, VictoriaDerrota
-
-CompeticionId = NewType("CompeticionId", str)
-FaseId = NewType("FaseId", str)
-GrupoId = NewType("GrupoId", str)
 
 
 @dataclass(frozen=True, slots=True)

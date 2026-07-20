@@ -18,12 +18,10 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass, replace
 from enum import Enum
-from typing import NewType, Sequence
+from typing import Sequence
 
 from .errores import ErrorDeDominio
-from .participante import ParticipanteId
-
-EnfrentamientoId = NewType("EnfrentamientoId", str)
+from .identidades import EnfrentamientoId, ParticipanteId
 
 
 @dataclass(frozen=True, slots=True)

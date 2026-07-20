@@ -111,3 +111,20 @@ class TestMiembro:
 
     def test_el_dorsal_es_opcional(self):
         assert Miembro("m1", "Ana").dorsal is None
+
+
+class TestPertenenciaACompeticion:
+    def test_un_participante_puede_no_estar_inscrito_todavia(self):
+        assert participante().competicion_id is None
+
+    def test_lleva_la_competicion_a_la_que_pertenece(self):
+        inscrito = participante(competicion_id="c1")
+        assert inscrito.competicion_id == "c1"
+
+    def test_la_competicion_no_cambia_la_identidad(self):
+        assert participante(competicion_id="c1") == participante(competicion_id="c2")
+
+    def test_el_mismo_nombre_en_dos_competiciones_son_participantes_distintos(self):
+        una = Participante(id="p1", nombre="Los Tigres", competicion_id="c1")
+        otra = Participante(id="p2", nombre="Los Tigres", competicion_id="c2")
+        assert una != otra
