@@ -21,19 +21,17 @@ import os
 
 import pytest
 
-from conftest import cliente_supabase
-
 pytestmark = pytest.mark.supabase
 
 
 @pytest.fixture(scope="module")
-def admin():
+def admin(crear_cliente_supabase):
     """Cliente con `service_role`: escribe saltándose RLS. Prepara el terreno."""
-    return cliente_supabase("SUPABASE_KEY")
+    return crear_cliente_supabase("SUPABASE_KEY")
 
 
 @pytest.fixture(scope="module")
-def anonimo():
+def anonimo(crear_cliente_supabase):
     """Cliente con la clave `anon`: sujeto a RLS, como un visitante.
 
     Sin `SUPABASE_ANON_KEY` esto se salta, y entonces las políticas quedan sin
@@ -44,7 +42,7 @@ def anonimo():
             "Falta SUPABASE_ANON_KEY. Sin ella no se puede comprobar RLS: "
             "la clave service_role salta las políticas."
         )
-    return cliente_supabase("SUPABASE_ANON_KEY")
+    return crear_cliente_supabase("SUPABASE_ANON_KEY")
 
 
 @pytest.fixture

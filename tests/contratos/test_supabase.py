@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import pytest
 
-from conftest import cliente_supabase
 from test_repositorios import (
     ContratoDeCompeticiones,
     ContratoDeConcesiones,
@@ -32,8 +31,8 @@ pytestmark = pytest.mark.supabase
 
 
 @pytest.fixture(scope="module")
-def cliente():
-    return cliente_supabase("SUPABASE_KEY")
+def cliente(crear_cliente_supabase):
+    return crear_cliente_supabase("SUPABASE_KEY")
 
 
 #: Tablas a vaciar, de hija a padre para no chocar con las claves ajenas, y la

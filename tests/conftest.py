@@ -1,11 +1,13 @@
-"""Credenciales de Supabase, validadas antes de usarlas.
+"""Apoyo compartido por toda la suite.
 
-Una clave mal pegada —truncada, con un salto de línea dentro, o con caracteres
-que el terminal sustituyó— no falla donde uno la escribe: viaja hasta el fondo
-de httpx y revienta con un `UnicodeEncodeError` en cada test, con veinte marcos
-de pila que no dicen nada del problema real.
+Las credenciales de Supabase se validan **antes** de usarlas: una clave mal
+pegada —truncada, o con caracteres que el terminal sustituyó— no falla donde uno
+la escribe, sino en el fondo de httpx, con un `UnicodeEncodeError` por test y
+veinte marcos de pila que no dicen nada del problema real.
 
-Aquí se comprueba antes, y el mensaje dice qué pasa.
+Vive aquí y como fixture, no como función importable, porque `tests/ui/` y
+`tests/contratos/` tienen cada uno su `conftest.py` y un `from conftest import`
+resuelve al que pytest haya cargado primero.
 """
 
 from __future__ import annotations
@@ -14,8 +16,7 @@ import os
 
 import pytest
 
-
-#: Un JWT de Supabase ronda los 200 caracteres. Por debajo de esto está cortado.
+#: Un JWT de Supabase ronda los 200 caracteres. Por debajo está cortado.
 MINIMO_DE_CLAVE = 100
 
 
@@ -35,7 +36,7 @@ def _sin_caracteres_ajenos(nombre: str, valor: str) -> None:
     )
 
 
-def url_de_supabase() -> str:
+def _url() -> str:
     valor = os.getenv("SUPABASE_URL")
     if not valor:
         pytest.skip("Falta SUPABASE_URL.")
@@ -46,7 +47,7 @@ def url_de_supabase() -> str:
     return valor
 
 
-def clave_de_supabase(nombre: str) -> str:
+def _clave(nombre: str) -> str:
     valor = os.getenv(nombre)
     if not valor:
         pytest.skip(f"Falta {nombre}.")
@@ -62,7 +63,16 @@ def clave_de_supabase(nombre: str) -> str:
     return valor
 
 
-def cliente_supabase(clave_env: str):
-    """Crea un cliente con la clave indicada, tras validar url y clave."""
-    supabase = pytest.importorskip("supabase")
-    return supabase.create_client(url_de_supabase(), clave_de_supabase(clave_env))
+@pytest.fixture(scope="session")
+def crear_cliente_supabase():
+    """Devuelve una función que arma un cliente con la clave que se le pida.
+
+    `SUPABASE_KEY` es la `service_role` —salta RLS— y `SUPABASE_ANON_KEY` la
+    pública, que es la única con la que tiene sentido comprobar las políticas.
+    """
+
+    def crear(clave_env: str = "SUPABASE_KEY"):
+        supabase = pytest.importorskip("supabase")
+        return supabase.create_client(_url(), _clave(clave_env))
+
+    return crear

@@ -15,6 +15,7 @@ import streamlit as st
 from itc_deporte.aplicacion.permisos import ANONIMO, Accion, Identidad, Rol
 from itc_deporte.domain.competicion import FaseDeGrupos, FaseEliminatoria
 from itc_deporte.ui import construir, tema, vistas
+from itc_deporte.ui.composicion import BaseSinPreparar
 
 st.set_page_config(
     page_title="ITC Deportes",
@@ -28,14 +29,24 @@ for clave, valor in [("tema", "oscuro"), ("usuario_id", None)]:
 
 @st.cache_resource
 def servicios():
-    """Una sola composición por proceso."""
+    """Una sola composición por proceso.
+
+    Solo se cae a la demostración cuando de verdad no hay credenciales. Si las
+    hay y algo falla, se propaga: mostrar datos de muestra con aspecto de reales
+    sería peor que no arrancar.
+    """
     try:
-        return construir(st.secrets)
+        secretos = st.secrets
     except Exception:
-        return construir(None)
+        secretos = None
+    return construir(secretos)
 
 
-SERVICIOS = servicios()
+try:
+    SERVICIOS = servicios()
+except BaseSinPreparar as error:
+    st.error(str(error), icon="🗄️")
+    st.stop()
 
 
 def actor() -> Identidad:

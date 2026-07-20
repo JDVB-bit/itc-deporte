@@ -40,6 +40,10 @@ from ..domain.reglas.fixture import ConfigFixture
 from ..domain.reglas.puntuacion import PorSets
 
 
+class BaseSinPreparar(RuntimeError):
+    """Hay credenciales pero la base no tiene el esquema del sistema nuevo."""
+
+
 @dataclass(frozen=True, slots=True)
 class Servicios:
     """Todo lo que la interfaz puede pedirle al sistema."""
@@ -59,12 +63,19 @@ class Servicios:
 
 
 def construir(secretos: Any = None) -> Servicios:
-    """Arma los servicios. Sin credenciales usa memoria y datos de muestra."""
+    """Arma los servicios.
+
+    Sin credenciales usa memoria y datos de muestra. **Con** credenciales usa
+    Supabase o falla: caer a la demostración cuando la base no responde sería
+    mostrar competiciones inventadas como si fueran reales, que es peor que no
+    arrancar.
+    """
     url = _leer(secretos, "SUPABASE_URL")
     clave = _leer(secretos, "SUPABASE_KEY")
 
     if url and clave:
         repositorios, autenticador, demostracion = _sobre_supabase(url, clave)
+        _exigir_esquema(repositorios[0])
     else:
         repositorios, autenticador, demostracion = _en_memoria()
 
@@ -91,6 +102,24 @@ def construir(secretos: Any = None) -> Servicios:
         politica=politica,
         es_demostracion=demostracion,
     )
+
+
+def _exigir_esquema(competiciones) -> None:
+    """Comprueba que la base tenga el esquema nuevo, y lo dice si no.
+
+    Sin esto, el fallo aparecería más tarde y en forma de error de red, sin
+    pista de que lo que falta es aplicar `esquema.sql`.
+    """
+    try:
+        competiciones.listar()
+    except Exception as error:
+        raise BaseSinPreparar(
+            "Hay credenciales de Supabase, pero la base no responde a las "
+            "tablas del sistema nuevo.\n\n"
+            "Si es la primera vez, falta aplicar `docs/PASO_2.sql` en el editor "
+            "SQL de Supabase (ver `docs/FASE_7.md`).\n\n"
+            f"Detalle: {error}"
+        ) from error
 
 
 def _leer(secretos: Any, clave: str) -> str | None:

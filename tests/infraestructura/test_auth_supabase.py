@@ -175,14 +175,8 @@ class TestContraSupabaseReal:
     CORREO = "adaptador-itc@example.com"
 
     @pytest.fixture
-    def cliente(self):
-        import sys
-        from pathlib import Path
-
-        sys.path.insert(0, str(Path(__file__).parent.parent / "contratos"))
-        from conftest import cliente_supabase
-
-        return cliente_supabase("SUPABASE_KEY")
+    def cliente(self, crear_cliente_supabase):
+        return crear_cliente_supabase("SUPABASE_KEY")
 
     @pytest.fixture
     def autenticador(self, cliente):
