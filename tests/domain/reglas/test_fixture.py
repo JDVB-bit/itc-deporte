@@ -199,12 +199,13 @@ class TestOrdenDeSiembra:
         with pytest.raises(ReglaInvalida):
             orden_de_siembra(6)
 
-    def test_coincide_con_la_siembra_del_sistema_anterior(self):
-        """Misma siembra; lo que cambia es que el cuadro ya no topa en 16."""
-        from itc_deporte.legado.motor_actual import gen_seeds
-
-        for tamano in (2, 4, 8, 16):
-            assert list(orden_de_siembra(tamano)) == gen_seeds(tamano)
+    def test_la_siembra_es_la_estandar_de_cualquier_cuadro(self):
+        """Los valores exactos quedan fijados arriba; esto comprueba la
+        propiedad que los define, para cualquier tamaño."""
+        for tamano in (2, 4, 8, 16, 32, 64):
+            siembra = orden_de_siembra(tamano)
+            assert sorted(siembra) == list(range(1, tamano + 1))
+            assert siembra[0] == 1 and siembra[1] == tamano
 
 
 class TestEliminacionDirecta:

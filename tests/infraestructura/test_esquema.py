@@ -55,3 +55,15 @@ def test_el_enfrentamiento_referencia_participantes_por_id(sentencias):
     columnas = {c.name for c in enfrentamientos.this.expressions if hasattr(c, "name")}
     assert {"local_id", "visitante_id"} <= columnas
     assert "enf" not in columnas
+
+
+def test_el_sql_para_pegar_esta_al_dia():
+    """`docs/PASO_2.sql` es esquema + permisos concatenados, para pegarlo de una
+    vez en el editor de Supabase. Al ser una copia, puede quedarse atrás: esto
+    lo impide."""
+    from itc_deporte.infraestructura.supabase import PERMISOS
+
+    raiz = ESQUEMA.parents[4]
+    contenido = (raiz / "docs" / "PASO_2.sql").read_text(encoding="utf-8")
+    assert ESQUEMA.read_text(encoding="utf-8") in contenido
+    assert PERMISOS.read_text(encoding="utf-8") in contenido

@@ -1,6 +1,9 @@
 -- PASO 2 de la Fase 7. Pegar entero en el SQL Editor de Supabase y ejecutar.
 -- Es esquema.sql + permisos.sql en un solo archivo, en el orden correcto.
 -- No borra nada. La aplicacion actual sigue funcionando despues de esto.
+--
+-- GENERADO: no editar a mano. `tests/infraestructura/test_esquema.py`
+-- comprueba que siga coincidiendo con los dos ficheros de origen.
 
 -- Esquema objetivo del motor de competiciones.
 --
@@ -163,9 +166,7 @@ create table marcadores (
 -- sistema viejo sigue usando. Se crea en `corte.sql`, cuando se retire.
 
 
-
 ----------------------------------------------------------------------------
-
 
 -- Concesiones y políticas RLS. Se aplica después de `esquema.sql`.
 --
@@ -178,7 +179,13 @@ create table marcadores (
 -- la que se sustituye la tabla `usuarios` con bcrypt propio, que no tenía forma
 -- de hacerse visible dentro de Postgres.
 --
--- NO SE HA EJECUTADO todavía contra ninguna instancia.
+-- Aplicado y comprobado: las tablas, funciones e índices se crean sin error.
+--
+-- Lo que NO está comprobado es el **comportamiento** de las políticas. La suite
+-- de contrato corre con la clave `service_role`, que salta RLS por completo, de
+-- modo que nada de lo que pasa demuestra que estas políticas permitan o nieguen
+-- lo que deben. Eso lo comprueba `tests/contratos/test_rls.py`, que necesita
+-- además la clave `anon`.
 --
 -- `logros` y su política viven en `corte.sql`: esa tabla choca con la del
 -- sistema viejo, así que solo puede crearse cuando aquella se retire.
