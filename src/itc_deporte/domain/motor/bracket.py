@@ -50,7 +50,24 @@ class SlotDeBracket:
 
     @property
     def es_bye(self) -> bool:
+        """Solo la primera ronda tiene byes de verdad.
+
+        Más adelante, una casilla a medias no significa que alguien pase sin
+        jugar: significa que el partido que la alimenta aún no ha terminado.
+        Confundir las dos cosas hacía que los mejores sembrados llegaran a la
+        final sin que se disputara su primer cruce.
+        """
+        if self.ronda != 0:
+            return False
         return (self.local is None) != (self.visitante is None)
+
+    @property
+    def espera_rival(self) -> bool:
+        """Tiene a uno de los dos y aguarda a que se decida el otro."""
+        return (
+            not self.es_bye
+            and (self.local is None) != (self.visitante is None)
+        )
 
     @property
     def listo(self) -> bool:

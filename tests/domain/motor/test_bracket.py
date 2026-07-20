@@ -247,3 +247,50 @@ class TestConsultasYErrores:
     def test_rechaza_un_cuadro_que_no_acaba_en_final(self):
         with pytest.raises(ErrorDeDominio):
             Bracket((tuple(SlotDeBracket(0, p) for p in range(2)),))
+
+
+class TestUnByeSoloLoEsEnLaPrimeraRonda:
+    """Encontrado al conectar el cuadro a la interfaz.
+
+    `es_bye` miraba solo si faltaba un contendiente, y en las rondas
+    posteriores eso no significa que alguien pase sin jugar: significa que el
+    partido que alimenta la casilla no ha terminado. Con seis participantes,
+    los dos primeros sembrados llegaban a la final sin que se disputara ni un
+    cuartos.
+    """
+
+    def test_un_hueco_de_la_primera_ronda_es_un_bye(self):
+        bracket = Bracket.desde_clasificados(equipos(6))
+        assert bracket.slot(0, 0).es_bye
+        assert bracket.slot(0, 0).ganador() == "p1"
+
+    def test_pero_un_hueco_posterior_es_un_rival_por_decidir(self):
+        bracket = Bracket.desde_clasificados(equipos(6))
+        semifinal = bracket.slot(1, 0)
+        assert semifinal.local == "p1" and semifinal.visitante is None
+        assert not semifinal.es_bye
+        assert semifinal.ganador() is None
+
+    def test_nadie_llega_a_la_final_sin_jugar(self):
+        bracket = Bracket.desde_clasificados(equipos(6))
+        final = bracket.rondas[-1][0]
+        assert final.local is None and final.visitante is None
+
+    def test_el_rival_aparece_cuando_se_resuelve_su_partido(self):
+        bracket = Bracket.desde_clasificados(equipos(6))
+        bracket = gana_local(bracket, 0, 1)  # p4 vence a p5
+        semifinal = bracket.slot(1, 0)
+        assert (semifinal.local, semifinal.visitante) == ("p1", "p4")
+        assert semifinal.listo
+
+    def test_el_cuadro_completo_sigue_resolviendose(self):
+        bracket = Bracket.desde_clasificados(equipos(6))
+        for ronda in range(bracket.total_rondas):
+            bracket = resolver_ronda(bracket, ronda)
+        assert bracket.campeon() == "p1"
+        assert bracket.pendientes() == ()
+
+    def test_una_casilla_a_la_espera_no_cuenta_como_pendiente(self):
+        """No está pendiente de jugarse: está pendiente de saber quién juega."""
+        bracket = Bracket.desde_clasificados(equipos(6))
+        assert all(c.ronda == 0 for c in bracket.pendientes())
