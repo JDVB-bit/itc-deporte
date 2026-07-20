@@ -328,3 +328,150 @@ def calcular_tabla(categoria, deporte):
         r["#"] = i + 1
         r["DG"] = r["GF"] - r["GC"]
     return rows
+
+# ── LLAVES (ELIMINACIÓN DIRECTA) ─────────────────────────────────────────────
+# Octavos → Cuartos → Semifinal → Final. El tamaño se ajusta automáticamente
+# según cuántos equipos hay registrados (2→Final, 4→Semifinal, 8→Cuartos,
+# 16→Octavos, más de 16 se recorta a los mejores 16 de la tabla).
+# Se genera automáticamente a partir de la tabla de posiciones, y el profesor
+# puede editar equipos y cargar marcadores; el ganador avanza solo.
+
+RONDA_ORDEN = ["OCTAVOS", "CUARTOS", "SEMIFINAL", "FINAL"]
+RONDA_LABEL = {
+    "OCTAVOS":   "Octavos de Final",
+    "CUARTOS":   "Cuartos de Final",
+    "SEMIFINAL": "Semifinal",
+    "FINAL":     "Final",
+}
+
+def _tamano_bracket(n):
+    for size in (2, 4, 8, 16):
+        if n <= size:
+            return size
+    return 16
+
+def _gen_seeds(size):
+    """Orden de siembra estándar de bracket (1 vs último, 2 vs penúltimo, etc.)."""
+    seeds = [1]
+    while len(seeds) < size:
+        n = len(seeds) * 2
+        nuevos = []
+        for s in seeds:
+            nuevos.append(s)
+            nuevos.append(n + 1 - s)
+        seeds = nuevos
+    return seeds
+
+def obtener_llaves(categoria, deporte):
+    """Devuelve dict {ronda: [partidos ordenados por slot]}."""
+    res = db().table("llaves").select("*") \
+              .eq("categoria", categoria).eq("deporte", deporte).execute()
+    rondas = {}
+    for r in res.data:
+        rondas.setdefault(r["ronda"], []).append(r)
+    for ronda in rondas:
+        rondas[ronda].sort(key=lambda x: x["slot"])
+    return rondas
+
+def eliminar_llaves(categoria, deporte):
+    db().table("llaves").delete() \
+        .eq("categoria", categoria).eq("deporte", deporte).execute()
+
+def generar_llaves(categoria, deporte):
+    """Genera (o regenera) el bracket a partir de la tabla de posiciones actual."""
+    tabla = calcular_tabla(categoria, deporte)
+    if len(tabla) < 2:
+        return None, "Se necesitan al menos 2 equipos registrados para generar las llaves."
+
+    equipos_rank = tabla[:16]   # top 16 según la tabla
+    n = len(equipos_rank)
+    size = _tamano_bracket(n)
+    ronda_inicial = {2: "FINAL", 4: "SEMIFINAL", 8: "CUARTOS", 16: "OCTAVOS"}[size]
+    seeds = _gen_seeds(size)
+    seed_a_equipo = {i + 1: (equipos_rank[i] if i < n else None) for i in range(size)}
+
+    eliminar_llaves(categoria, deporte)
+
+    rondas = RONDA_ORDEN[RONDA_ORDEN.index(ronda_inicial):]
+    num_slots = size // 2
+    filas = []
+    for ridx, ronda in enumerate(rondas):
+        for slot in range(num_slots):
+            if ridx == 0:
+                s1, s2 = seeds[slot * 2], seeds[slot * 2 + 1]
+                e1, e2 = seed_a_equipo.get(s1), seed_a_equipo.get(s2)
+                fila = dict(
+                    categoria=categoria, deporte=deporte, ronda=ronda, slot=slot,
+                    equipo1=e1["Equipo"] if e1 else None, curso1=e1["Curso"] if e1 else None,
+                    equipo2=e2["Equipo"] if e2 else None, curso2=e2["Curso"] if e2 else None,
+                    estado="Pendiente", g1=0, g2=0,
+                )
+                # Bye: si solo hay un equipo en el cruce, avanza automáticamente
+                if e1 and not e2:
+                    fila["estado"], fila["g1"], fila["g2"] = "Finalizado", 1, 0
+                elif e2 and not e1:
+                    fila["estado"], fila["g1"], fila["g2"] = "Finalizado", 0, 1
+            else:
+                fila = dict(
+                    categoria=categoria, deporte=deporte, ronda=ronda, slot=slot,
+                    equipo1=None, curso1=None, equipo2=None, curso2=None,
+                    estado="Pendiente", g1=0, g2=0,
+                )
+            filas.append(fila)
+        num_slots //= 2
+
+    db().table("llaves").insert(filas).execute()
+    _propagar_ganadores(categoria, deporte)
+    return True, None
+
+def _ganador_llave(row):
+    if row["estado"] != "Finalizado":
+        return None, None
+    if row["g1"] > row["g2"]:
+        return row["equipo1"], row["curso1"]
+    if row["g2"] > row["g1"]:
+        return row["equipo2"], row["curso2"]
+    return None, None
+
+def _propagar_ganadores(categoria, deporte):
+    """Copia el ganador de cada partido decidido a la casilla correspondiente
+    de la siguiente ronda, en cascada."""
+    res = db().table("llaves").select("*") \
+              .eq("categoria", categoria).eq("deporte", deporte).execute()
+    por_ronda = {}
+    for r in res.data:
+        por_ronda.setdefault(r["ronda"], {})[r["slot"]] = r
+
+    for i in range(len(RONDA_ORDEN) - 1):
+        ronda_actual, ronda_sig = RONDA_ORDEN[i], RONDA_ORDEN[i + 1]
+        if ronda_actual not in por_ronda or ronda_sig not in por_ronda:
+            continue
+        for slot, row in por_ronda[ronda_actual].items():
+            nombre, curso = _ganador_llave(row)
+            if nombre is None:
+                continue
+            sig_slot = slot // 2
+            sig_row = por_ronda[ronda_sig].get(sig_slot)
+            if not sig_row:
+                continue
+            campo   = "equipo1" if slot % 2 == 0 else "equipo2"
+            campo_c = "curso1"  if slot % 2 == 0 else "curso2"
+            if sig_row.get(campo) != nombre or sig_row.get(campo_c) != curso:
+                db().table("llaves").update({campo: nombre, campo_c: curso}) \
+                    .eq("id", sig_row["id"]).execute()
+                sig_row[campo], sig_row[campo_c] = nombre, curso  # para cascada en memoria
+
+def actualizar_llave(llave_id, estado, g1, g2):
+    res = db().table("llaves").select("categoria,deporte").eq("id", llave_id).execute()
+    if not res.data:
+        return
+    categoria, deporte = res.data[0]["categoria"], res.data[0]["deporte"]
+    db().table("llaves").update({"estado": estado, "g1": g1, "g2": g2}) \
+        .eq("id", llave_id).execute()
+    _propagar_ganadores(categoria, deporte)
+
+def editar_equipo_llave(llave_id, lado, nombre, curso):
+    """lado: '1' o '2'. Permite corregir manualmente un cruce."""
+    campo, campo_c = f"equipo{lado}", f"curso{lado}"
+    db().table("llaves").update({campo: nombre or None, campo_c: curso or None}) \
+        .eq("id", llave_id).execute()
