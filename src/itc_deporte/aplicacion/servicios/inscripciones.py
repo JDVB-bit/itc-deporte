@@ -11,6 +11,7 @@ from ...domain.competicion import EstadoCompeticion
 from ...domain.identidades import CompeticionId, DivisionId, ParticipanteId
 from ...domain.participante import Participante
 from ..errores import NoEncontrado, OperacionInvalida
+from ..permisos import Accion, Identidad, Politica
 from ..puertos import RepositorioDeCompeticiones, RepositorioDeParticipantes
 
 
@@ -19,20 +20,26 @@ class ServicioDeInscripciones:
         self,
         competiciones: RepositorioDeCompeticiones,
         participantes: RepositorioDeParticipantes,
+        politica: Politica,
     ) -> None:
         self._competiciones = competiciones
         self._participantes = participantes
+        self._politica = politica
 
     def inscritos(self, competicion_id: CompeticionId) -> tuple[Participante, ...]:
         return self._participantes.de_competicion(competicion_id)
 
     def inscribir(
         self,
+        actor: Identidad,
         competicion_id: CompeticionId,
         participante_id: ParticipanteId,
         nombre: str,
         division_id: DivisionId | None = None,
     ) -> Participante:
+        self._politica.exigir(
+            actor, Accion.INSCRIBIR_PARTICIPANTE, competicion_id
+        )
         competicion = self._competiciones.obtener(competicion_id)
         if competicion is None:
             raise NoEncontrado(f"No existe la competición {competicion_id!r}.")
@@ -58,7 +65,11 @@ class ServicioDeInscripciones:
         self._participantes.guardar(participante)
         return participante
 
-    def retirar(self, participante_id: ParticipanteId) -> None:
-        if self._participantes.obtener(participante_id) is None:
+    def retirar(self, actor: Identidad, participante_id: ParticipanteId) -> None:
+        participante = self._participantes.obtener(participante_id)
+        if participante is None:
             raise NoEncontrado(f"No existe el participante {participante_id!r}.")
+        self._politica.exigir(
+            actor, Accion.INSCRIBIR_PARTICIPANTE, participante.competicion_id
+        )
         self._participantes.eliminar(participante_id)

@@ -1,17 +1,24 @@
 """Adaptadores de Supabase.
 
-Por ahora solo el DDL del esquema objetivo. Los repositorios llegan con la
-Fase 7, cuando el esquema se aplique: escribirlos antes sería comprometer
-código que no puede ejecutarse contra ninguna tabla real, que es justamente el
-antipatrón que dejó muerto el bracket anterior.
+El DDL del esquema objetivo y el proveedor de identidad. Los **repositorios**
+llegan con la Fase 7, cuando el esquema se aplique: escribirlos antes sería
+comprometer código que no puede ejecutarse contra ninguna tabla real, que es el
+antipatrón que dejó muerto el bracket anterior. Cuando existan, heredarán los
+tests de `tests/contratos/`.
 
-Cuando existan, heredarán los tests de `tests/contratos/` y correrán las mismas
-pruebas que los repositorios en memoria.
+`AutenticadorSupabase` sí está aquí porque Supabase Auth existe ya y no depende
+del esquema nuevo. Su lógica de traducción está probada; la forma de la API de
+`supabase-py` no, y eso exige una instancia real (`pytest -m supabase`).
 """
 
 from pathlib import Path
 
-#: DDL del esquema objetivo. No se aplica todavía: ver Fase 7 del plan.
-ESQUEMA = Path(__file__).parent / "esquema.sql"
+_AQUI = Path(__file__).parent
 
-__all__ = ["ESQUEMA"]
+#: DDL del esquema objetivo. No se aplica todavía: ver Fase 7 del plan.
+ESQUEMA = _AQUI / "esquema.sql"
+
+#: Concesiones y políticas RLS. Se aplica después de `esquema.sql`.
+PERMISOS = _AQUI / "permisos.sql"
+
+__all__ = ["ESQUEMA", "PERMISOS"]

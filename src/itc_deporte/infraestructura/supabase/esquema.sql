@@ -9,9 +9,9 @@
 -- participantes por id. Con eso desaparecen el parseo con expresiones regulares
 -- y la rutina de limpieza de filas corruptas que lo acompañaba.
 --
--- Pendiente de la Fase 6: la tabla `concesiones (usuario, competicion, rol)` y
--- las políticas RLS. No se declaran aquí porque el modelo de permisos se decide
--- en esa fase, y activar RLS sin políticas dejaría las tablas inaccesibles.
+-- Las concesiones y las políticas RLS viven en `permisos.sql`, que se aplica
+-- justo después: activar RLS sin políticas dejaría las tablas inaccesibles, así
+-- que las dos cosas van juntas o no van.
 
 -- ── Catálogo ────────────────────────────────────────────────────────────────
 

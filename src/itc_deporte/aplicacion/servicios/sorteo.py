@@ -21,6 +21,7 @@ from ...domain.enfrentamiento import Enfrentamiento
 from ...domain.identidades import CompeticionId, FaseId
 from ...domain.reglas.catalogo import crear_fixture
 from ..errores import NoEncontrado, OperacionInvalida
+from ..permisos import Accion, Identidad, Politica
 from ..puertos import (
     RepositorioDeCompeticiones,
     RepositorioDeEnfrentamientos,
@@ -34,20 +35,24 @@ class ServicioDeSorteo:
         competiciones: RepositorioDeCompeticiones,
         participantes: RepositorioDeParticipantes,
         enfrentamientos: RepositorioDeEnfrentamientos,
+        politica: Politica,
         azar: random.Random | None = None,
     ) -> None:
         self._competiciones = competiciones
         self._participantes = participantes
         self._enfrentamientos = enfrentamientos
+        self._politica = politica
         self._azar = azar or random.Random()
 
     def sortear(
         self,
+        actor: Identidad,
         competicion_id: CompeticionId,
         fase_id: FaseId,
         desde: dt.date | None = None,
     ) -> tuple[Enfrentamiento, ...]:
         """Genera el calendario de la fase y lo guarda, reemplazando el anterior."""
+        self._politica.exigir(actor, Accion.SORTEAR, competicion_id)
         competicion, fase = self._localizar(competicion_id, fase_id)
 
         inscritos = [p.id for p in self._participantes.de_competicion(competicion_id)]
@@ -68,6 +73,7 @@ class ServicioDeSorteo:
                 id=f"{fase.id}:j{jornada.numero}:{posicion}",
                 local=cruce.local,
                 visitante=cruce.visitante,
+                competicion_id=competicion.id,
                 fase_id=fase.id,
                 jornada=jornada.numero,
                 fecha=fecha,

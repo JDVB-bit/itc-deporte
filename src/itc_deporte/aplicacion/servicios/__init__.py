@@ -12,6 +12,7 @@ from .clasificacion import ServicioDeClasificacion
 from .competiciones import ServicioDeCompeticiones
 from .cuadro import ServicioDeCuadroFinal
 from .inscripciones import ServicioDeInscripciones
+from .registradores import ServicioDeRegistradores
 from .resultados import ServicioDeResultados
 from .sorteo import ServicioDeSorteo
 
@@ -20,6 +21,7 @@ __all__ = [
     "ServicioDeCompeticiones",
     "ServicioDeCuadroFinal",
     "ServicioDeInscripciones",
+    "ServicioDeRegistradores",
     "ServicioDeResultados",
     "ServicioDeSorteo",
 ]

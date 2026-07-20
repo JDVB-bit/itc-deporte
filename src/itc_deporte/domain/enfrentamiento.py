@@ -21,7 +21,7 @@ from enum import Enum
 from typing import Sequence
 
 from .errores import ErrorDeDominio
-from .identidades import EnfrentamientoId, FaseId, ParticipanteId
+from .identidades import CompeticionId, EnfrentamientoId, FaseId, ParticipanteId
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +106,7 @@ class Enfrentamiento:
     #: Una casilla de cuadro puede no saber todavía quién la ocupa.
     local: ParticipanteId | None
     visitante: ParticipanteId | None
+    competicion_id: CompeticionId | None = None
     fase_id: FaseId | None = None
     marcador: Marcador | None = None
     estado: EstadoEnfrentamiento = EstadoEnfrentamiento.PENDIENTE

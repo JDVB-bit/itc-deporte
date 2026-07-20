@@ -203,10 +203,11 @@ uso invocado directamente sin permiso falla.
 
 El puerto de repositorio existe para **testear sin red**, no para migrar fuera.
 
-**Cambio recomendado dentro de Supabase (Fase 6):** sustituir la tabla `usuarios`
-con bcrypt propio por **Supabase Auth**, que ya provee invitación por correo,
-recuperación de contraseña y `auth.uid()` para RLS. El flujo de Registradores por
-correo lo necesita. Requiere migrar los usuarios existentes.
+**Decidido y aplicado en la Fase 6:** se sustituye la tabla `usuarios` con
+bcrypt propio por **Supabase Auth**, que provee invitación por correo,
+recuperación de contraseña y `auth.uid()` para RLS. El procedimiento de
+migración de los usuarios existentes está en `docs/MIGRACION_AUTH.md`; se
+ejecuta en la Fase 7.
 
 ## 9. Esquema objetivo (borrador)
 

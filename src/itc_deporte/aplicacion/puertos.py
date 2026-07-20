@@ -26,10 +26,7 @@ from ..domain.identidades import (
 )
 from ..domain.participante import Participante
 from ..domain.plantilla import PlantillaDeCompeticion
-
-
-class NoEncontrado(LookupError):
-    """Se pidió algo que el repositorio no tiene."""
+from .permisos import Concesion, Identidad
 
 
 @runtime_checkable
@@ -74,3 +71,38 @@ class RepositorioDePlantillas(Protocol):
     def obtener(self, plantilla_id: str) -> PlantillaDeCompeticion | None: ...
 
     def listar(self) -> tuple[PlantillaDeCompeticion, ...]: ...
+
+
+@runtime_checkable
+class RepositorioDeConcesiones(Protocol):
+    def de_usuario(self, usuario_id: str) -> tuple[Concesion, ...]: ...
+
+    def de_competicion(
+        self, competicion_id: CompeticionId
+    ) -> tuple[Concesion, ...]: ...
+
+    def otorgar(self, concesion: Concesion) -> None: ...
+
+    def revocar(
+        self, usuario_id: str, competicion_id: CompeticionId | None = None
+    ) -> None: ...
+
+
+@runtime_checkable
+class Autenticador(Protocol):
+    """Quién es quien pide algo, y cómo se le invita.
+
+    Sustituye a la tabla `usuarios` con bcrypt propio. La invitación por correo
+    es lo que necesita el panel de Registradores: el Admin escribe un correo y
+    el proveedor se encarga del resto.
+    """
+
+    def identificar(self, token: str) -> Identidad | None:
+        """Identidad tras un token de sesión, o `None` si no vale."""
+        ...
+
+    def por_email(self, email: str) -> Identidad | None: ...
+
+    def invitar(self, email: str) -> Identidad:
+        """Da de alta a alguien por correo y devuelve su identidad."""
+        ...
