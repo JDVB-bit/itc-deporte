@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
-PAQUETE = RAIZ / "itc_deporte"
+PAQUETE = RAIZ / "src" / "itc_deporte"
 
 # Capas de dentro hacia afuera. Cada una puede importar las anteriores.
 CAPAS = ["domain", "aplicacion", "infraestructura", "ui"]

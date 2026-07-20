@@ -1,6 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "itc-deporte"
+version = "0.1.0"
+description = "Motor genérico de gestión de competiciones deportivas"
+requires-python = ">=3.11"
+
+# Las dependencias de ejecución viven en requirements.txt, que es lo que lee el
+# despliegue. No se duplican aquí para que no puedan divergir.
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = ["src"]
 addopts = "-q --strict-markers"
 markers = [
     "supabase: pruebas que requieren una instancia real de Supabase",
