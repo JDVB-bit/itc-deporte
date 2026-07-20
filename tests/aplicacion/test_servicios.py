@@ -26,19 +26,31 @@ from itc_deporte.aplicacion.servicios import (
     ServicioDeResultados,
     ServicioDeSorteo,
 )
-from itc_deporte.domain.competicion import EstadoCompeticion
-from itc_deporte.domain.enfrentamiento import Marcador
 from itc_deporte.infraestructura.autenticacion import (
     AutenticadorEnMemoria,
     ConcesionesEnMemoria,
 )
+from itc_deporte.domain.calendario import Calendario
+from itc_deporte.domain.competicion import (
+    Competicion,
+    Deporte,
+    EstadoCompeticion,
+    FaseDeGrupos,
+    FaseEliminatoria,
+    Grupo,
+    ReglasDeCompeticion,
+)
+from itc_deporte.domain.enfrentamiento import Enfrentamiento, Marcador
+from itc_deporte.domain.reglas.fixture import ConfigFixture
+from itc_deporte.domain.reglas.puntuacion import PorSets
 from itc_deporte.infraestructura.memoria import (
     CompeticionesEnMemoria,
     EnfrentamientosEnMemoria,
     ParticipantesEnMemoria,
-    PlantillasEnMemoria,
 )
-from itc_deporte.infraestructura.plantillas import cargar_semillas
+
+MICROFUTBOL = Deporte("microfutbol", "Microfútbol", "⚽")
+VOLEIBOL = Deporte("voleyball", "Voleyball", "🏐")
 
 LUNES = dt.date(2026, 7, 20)
 
@@ -53,7 +65,6 @@ def repos():
         "competiciones": CompeticionesEnMemoria(),
         "participantes": ParticipantesEnMemoria(),
         "enfrentamientos": EnfrentamientosEnMemoria(),
-        "plantillas": PlantillasEnMemoria(cargar_semillas()),
         "concesiones": ConcesionesEnMemoria(
             [
                 Concesion("admin", Rol.ADMIN),
@@ -76,7 +87,7 @@ def servicios(repos, politica):
     )
     return {
         "competiciones": ServicioDeCompeticiones(
-            repos["competiciones"], repos["plantillas"], politica
+            repos["competiciones"], politica
         ),
         "inscripciones": ServicioDeInscripciones(
             repos["competiciones"], repos["participantes"], politica
@@ -102,54 +113,80 @@ def servicios(repos, politica):
     }
 
 
-def crear_liga(servicios, plantilla="itc-microfutbol", inscritos=4):
-    servicios["competiciones"].crear_desde_plantilla(ADMIN, plantilla, "c1", "Prueba")
+def competicion_de_prueba(id_="c1", nombre="Prueba", deporte=MICROFUTBOL, puntuacion=None):
+    """Arma una competición a mano, que es como se crean ahora.
+
+    Reproduce la configuración con la que opera el ITC —siete jornadas, sábados
+    a las 15:00, cuadro a 16— sin que eso sea una plantilla precargada.
+    """
+    reglas = ReglasDeCompeticion(puntuacion=puntuacion) if puntuacion else ReglasDeCompeticion()
+    return Competicion(
+        id=id_,
+        nombre=nombre,
+        deporte=deporte,
+        fases=(
+            FaseDeGrupos(
+                f"{id_}:0", "Fase de grupos", 0,
+                config_fixture=ConfigFixture(jornadas_forzadas=7),
+            ),
+            FaseEliminatoria(
+                f"{id_}:1", "Eliminación directa", 1,
+                fixture="eliminacion_directa", cupos=16,
+            ),
+        ),
+        reglas=reglas,
+        calendario=Calendario(dia_de_la_semana=5, hora=dt.time(15, 0)),
+    )
+
+
+def crear_liga(servicios, deporte=None, inscritos=4):
+    servicios["competiciones"].crear(
+        ADMIN, competicion_de_prueba(deporte=deporte or MICROFUTBOL)
+    )
     for i in range(1, inscritos + 1):
         servicios["inscripciones"].inscribir(ADMIN, "c1", f"p{i}", f"Equipo {i}")
-    return "c1:0", "c1:1"  # fase de grupos, eliminatoria
+    return "c1:0", "c1:1"
 
 
 class TestCompeticiones:
-    def test_crear_desde_plantilla(self, servicios):
-        competicion = servicios["competiciones"].crear_desde_plantilla(
-            ADMIN, "itc-microfutbol", "c1", nombre="Intercursos 2026", temporada="2026"
+    def test_crear(self, servicios):
+        competicion = servicios["competiciones"].crear(
+            ADMIN, competicion_de_prueba(nombre="Intercursos 2026")
         )
         assert competicion.nombre == "Intercursos 2026"
         assert len(competicion.fases) == 2
 
     def test_la_competicion_queda_guardada(self, servicios):
-        servicios["competiciones"].crear_desde_plantilla(ADMIN, "itc-microfutbol", "c1")
+        servicios["competiciones"].crear(ADMIN, competicion_de_prueba())
         assert servicios["competiciones"].obtener("c1") is not None
 
-    def test_el_catalogo_alimenta_la_pestana_de_plantillas(self, servicios):
-        catalogo = servicios["competiciones"].catalogo_de_plantillas()
-        assert len(catalogo) == 4
-        assert all(p.es_semilla for p in catalogo)
-
-    def test_rechaza_una_plantilla_inexistente(self, servicios):
-        with pytest.raises(NoEncontrado, match="plantilla"):
-            servicios["competiciones"].crear_desde_plantilla(ADMIN, "fantasma", "c1")
-
     def test_rechaza_un_id_ya_usado(self, servicios):
-        servicios["competiciones"].crear_desde_plantilla(ADMIN, "itc-microfutbol", "c1")
+        servicios["competiciones"].crear(ADMIN, competicion_de_prueba())
         with pytest.raises(OperacionInvalida, match="Ya existe"):
-            servicios["competiciones"].crear_desde_plantilla(ADMIN, "itc-baloncesto", "c1")
+            servicios["competiciones"].crear(ADMIN, competicion_de_prueba())
 
     def test_obtener_lo_que_no_existe_falla(self, servicios):
         with pytest.raises(NoEncontrado):
             servicios["competiciones"].obtener("fantasma")
 
     def test_cambiar_estado(self, servicios):
-        servicios["competiciones"].crear_desde_plantilla(ADMIN, "itc-microfutbol", "c1")
+        servicios["competiciones"].crear(ADMIN, competicion_de_prueba())
         competicion = servicios["competiciones"].cambiar_estado(
             ADMIN, "c1", EstadoCompeticion.EN_CURSO
         )
         assert competicion.estado is EstadoCompeticion.EN_CURSO
 
+    def test_el_deporte_y_la_puntuacion_salen_del_catalogo(self, servicios):
+        """Siguen siendo dato configurable sin necesidad de plantillas."""
+        voley = competicion_de_prueba(deporte=VOLEIBOL, puntuacion=PorSets())
+        creada = servicios["competiciones"].crear(ADMIN, voley)
+        assert creada.deporte.nombre == "Voleyball"
+        assert creada.reglas.puntuacion.puntos(Marcador(3, 2)) == (2, 1)
+
 
 class TestInscripciones:
     def test_inscribir(self, servicios):
-        servicios["competiciones"].crear_desde_plantilla(ADMIN, "itc-microfutbol", "c1")
+        servicios["competiciones"].crear(ADMIN, competicion_de_prueba())
         participante = servicios["inscripciones"].inscribir(ADMIN, "c1", "p1", "Los Tigres")
         assert participante.competicion_id == "c1"
 
@@ -168,11 +205,11 @@ class TestInscripciones:
 
     def test_el_mismo_nombre_en_otra_competicion_si_vale(self, servicios):
         crear_liga(servicios, inscritos=1)
-        servicios["competiciones"].crear_desde_plantilla(ADMIN, "itc-baloncesto", "c2")
+        servicios["competiciones"].crear(ADMIN, competicion_de_prueba("c2", "Otra"))
         assert servicios["inscripciones"].inscribir(ADMIN, "c2", "p9", "Equipo 1")
 
     def test_normaliza_los_espacios_del_nombre(self, servicios):
-        servicios["competiciones"].crear_desde_plantilla(ADMIN, "itc-microfutbol", "c1")
+        servicios["competiciones"].crear(ADMIN, competicion_de_prueba())
         inscrito = servicios["inscripciones"].inscribir(ADMIN, "c1", "p1", "  Los Tigres  ")
         assert inscrito.nombre == "Los Tigres"
 
@@ -204,7 +241,7 @@ class TestSorteo:
         assert len(partidos) > 0
         assert all(p.fase_id == grupos for p in partidos)
 
-    def test_respeta_las_siete_jornadas_de_la_plantilla_itc(self, servicios):
+    def test_respeta_las_siete_jornadas_configuradas(self, servicios):
         grupos, _ = crear_liga(servicios, inscritos=4)
         partidos = servicios["sorteo"].sortear(ADMIN, "c1", grupos, desde=LUNES)
         assert {p.jornada for p in partidos} == set(range(1, 8))
@@ -234,9 +271,9 @@ class TestSorteo:
             enfs = EnfrentamientosEnMemoria()
             pol = Politica(ConcesionesEnMemoria([Concesion("admin", Rol.ADMIN)]))
             servicio_comp = ServicioDeCompeticiones(
-                comp, PlantillasEnMemoria(cargar_semillas()), pol
+                comp, pol
             )
-            servicio_comp.crear_desde_plantilla(ADMIN, "itc-microfutbol", "c1")
+            servicio_comp.crear(ADMIN, competicion_de_prueba())
             inscripciones = ServicioDeInscripciones(comp, parts, pol)
             for i in range(1, 5):
                 inscripciones.inscribir(ADMIN, "c1", f"p{i}", f"Equipo {i}")
@@ -323,7 +360,9 @@ class TestClasificacion:
 
     def test_usa_la_puntuacion_de_la_competicion(self, servicios):
         """En voleibol un 3-2 reparte 2-1, no 3-0."""
-        servicios["competiciones"].crear_desde_plantilla(ADMIN, "itc-voleyball", "c1")
+        servicios["competiciones"].crear(
+            ADMIN, competicion_de_prueba(deporte=VOLEIBOL, puntuacion=PorSets())
+        )
         for i in range(1, 5):
             servicios["inscripciones"].inscribir(ADMIN, "c1", f"p{i}", f"Equipo {i}")
         partido = servicios["sorteo"].sortear(ADMIN, "c1", "c1:0", desde=LUNES)[0]
@@ -395,7 +434,7 @@ class TestCuadroFinal:
 
 
 class TestDePuntaAPunta:
-    """Una competición entera: de la plantilla ITC al campeón, sin tocar la red."""
+    """Una competición entera: del sorteo al campeón, sin tocar la red."""
 
     def test_del_sorteo_al_campeon(self, servicios):
         grupos, copa = crear_liga(servicios, inscritos=4)
@@ -447,8 +486,7 @@ class TestClasificacionPorGrupo:
     def con_grupos(self, servicios, repos):
         from dataclasses import replace
 
-        from itc_deporte.domain.competicion import FaseDeGrupos, Grupo
-
+        
         grupos_id, _ = crear_liga(servicios, inscritos=4)
         competicion = servicios["competiciones"].obtener("c1")
         fase = competicion.fase(grupos_id)
@@ -474,8 +512,7 @@ class TestClasificacionPorGrupo:
         assert {f.participante_id for f in tabla} == {"p1", "p2"}
 
     def test_refleja_los_resultados_del_grupo(self, servicios, repos, con_grupos):
-        from itc_deporte.domain.enfrentamiento import Enfrentamiento
-
+        
         repos["enfrentamientos"].guardar(
             Enfrentamiento("x1", "p1", "p2", fase_id=con_grupos).finalizar(
                 Marcador(2, 0)

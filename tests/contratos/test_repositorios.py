@@ -20,18 +20,15 @@ from itc_deporte.aplicacion.puertos import (
     RepositorioDeConcesiones,
     RepositorioDeEnfrentamientos,
     RepositorioDeParticipantes,
-    RepositorioDePlantillas,
 )
 from itc_deporte.domain.competicion import Competicion, Deporte, FaseDeGrupos
 from itc_deporte.domain.enfrentamiento import Enfrentamiento, Marcador
 from itc_deporte.domain.participante import Participante
-from itc_deporte.domain.plantilla import PlantillaDeCompeticion
 from itc_deporte.infraestructura.autenticacion import ConcesionesEnMemoria
 from itc_deporte.infraestructura.memoria import (
     CompeticionesEnMemoria,
     EnfrentamientosEnMemoria,
     ParticipantesEnMemoria,
-    PlantillasEnMemoria,
 )
 
 FUTBOL = Deporte("microfutbol", "Microfútbol", "⚽")
@@ -215,27 +212,6 @@ class ContratoDeEnfrentamientos:
         repositorio.eliminar_de_fase("fantasma")
 
 
-# ── Plantillas ───────────────────────────────────────────────────────────────
-
-
-class ContratoDePlantillas:
-    @pytest.fixture
-    def repositorio(self) -> RepositorioDePlantillas:
-        raise NotImplementedError
-
-    def test_satisface_el_puerto(self, repositorio):
-        assert isinstance(repositorio, RepositorioDePlantillas)
-
-    def test_lista_las_plantillas(self, repositorio):
-        assert len(repositorio.listar()) >= 1
-
-    def test_se_recupera_por_id(self, repositorio):
-        alguna = repositorio.listar()[0]
-        assert repositorio.obtener(alguna.id) == alguna
-
-    def test_lo_que_no_existe_es_none(self, repositorio):
-        assert repositorio.obtener("fantasma") is None
-
 
 # ── Concesiones ──────────────────────────────────────────────────────────────
 
@@ -314,13 +290,6 @@ class TestConcesionesEnMemoria(ContratoDeConcesiones):
         return ConcesionesEnMemoria()
 
 
-class TestPlantillasEnMemoria(ContratoDePlantillas):
-    @pytest.fixture
-    def repositorio(self):
-        return PlantillasEnMemoria(
-            [PlantillaDeCompeticion(id="basica", nombre="Liga", deporte=FUTBOL)]
-        )
-
 
 class TestConstruccionConDatosIniciales:
     """Los repositorios en memoria aceptan un estado de partida, que es lo que
@@ -333,9 +302,3 @@ class TestConstruccionConDatosIniciales:
     def test_participantes(self):
         repo = ParticipantesEnMemoria([participante("p1"), participante("p2")])
         assert len(repo.de_competicion("c1")) == 2
-
-    def test_plantillas_desde_las_semillas(self):
-        from itc_deporte.infraestructura.plantillas import cargar_semillas
-
-        repo = PlantillasEnMemoria(cargar_semillas())
-        assert repo.obtener("itc-voleyball") is not None

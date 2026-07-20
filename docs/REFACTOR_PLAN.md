@@ -19,11 +19,11 @@ competiciones deportivas**, escalable y configurable, donde:
 | Decisión | Elección |
 |---|---|
 | Alcance | **Motor genérico configurable.** Deportes, categorías, divisiones y formatos son datos, no constantes. ITC queda como configuración precargada. |
-| Persistencia | **Migrar esquema con backfill.** El partido deja de ser texto y pasa a ser relacional. |
+| Persistencia | **Esquema nuevo, sin backfill.** El partido deja de ser texto y pasa a ser relacional; los datos anteriores se descartan (revisado, ver §13). |
 | Motor de datos | **Supabase se mantiene.** Ver §7. |
 | Roles | **Admin, Registrador, Visitante.** El Registrador es una concesión *por competición*, no un rol global. |
 | Arquitectura | **Clean Architecture**, con la regla de dependencia impuesta y verificada. |
-| Configuración ITC | **Plantilla precargada.** ITC no es código privilegiado: es la primera plantilla del catálogo. |
+| Configuración ITC | **Sin plantillas.** El deporte y la puntuación se eligen del catálogo de reglas al crear cada competición (revisado, ver §13). |
 | Commits | **Atómicos + Conventional Commits.** Solo se compromete software completo y ejecutable. |
 
 ## 3. Diagnóstico del código actual
@@ -350,3 +350,40 @@ Un commit entra si y solo si:
 - **Fechas de fixture.** Hoy fijas a sábado 15:00. Pasan a ser configurables por
   competición.
 - **Tope de bracket.** Hoy top-16 fijo. Pasa a depender del formato configurado.
+
+
+## 13. Decisiones revisadas durante la ejecución
+
+Dos decisiones marco se cambiaron al ver el alcance real. Quedan aquí y no
+borradas de §2, para que el porqué no se pierda.
+
+### Nº2 — Fuera el backfill
+
+**Era:** migrar el esquema arrastrando los datos existentes, resolviendo los
+enfrentamientos de texto a IDs con reporte de conflictos.
+
+**Es:** los datos anteriores se descartan y el sistema arranca en limpio.
+
+**Por qué:** el backfill se llegó a escribir y funcionaba —786 líneas con tests
+que garantizaban que ninguna fila se perdiera en silencio—, pero migrar datos que
+no se quieren conservar es riesgo sin beneficio. Empezar limpio elimina de un
+golpe la resolución de conflictos y la corrupción heredada que
+`limpiar_equipos_corruptos` venía tapando.
+
+**Coste:** se pierde el histórico de equipos, jugadores, partidos y llaves.
+
+### Nº6 — Fuera las plantillas
+
+**Era:** la configuración del ITC como plantilla precargada, cargada desde
+`plantillas/itc.json` como cualquier otra, con una pestaña "Plantillas" al crear
+competición.
+
+**Es:** no hay plantillas. Crear una competición es armarla y darla de alta.
+
+**Por qué:** la plantilla existía para que la configuración del ITC no fuera
+código privilegiado. Si esa configuración no se precarga, la capa entera sobra:
+lo que de verdad mantiene deportes y puntuaciones como dato configurable es
+`domain/reglas/catalogo.py`, no la plantilla que se apoyaba en él.
+
+**Consecuencia sobre la Fase 8:** desaparece la pestaña "Plantillas" del
+entregable. Crear una competición es un formulario.

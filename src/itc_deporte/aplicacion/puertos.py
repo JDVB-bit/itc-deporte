@@ -25,7 +25,6 @@ from ..domain.identidades import (
     ParticipanteId,
 )
 from ..domain.participante import Participante
-from ..domain.plantilla import PlantillaDeCompeticion
 from .permisos import Concesion, Identidad
 
 
@@ -65,12 +64,6 @@ class RepositorioDeEnfrentamientos(Protocol):
 
     def eliminar_de_fase(self, fase_id: FaseId) -> None: ...
 
-
-@runtime_checkable
-class RepositorioDePlantillas(Protocol):
-    def obtener(self, plantilla_id: str) -> PlantillaDeCompeticion | None: ...
-
-    def listar(self) -> tuple[PlantillaDeCompeticion, ...]: ...
 
 
 @runtime_checkable

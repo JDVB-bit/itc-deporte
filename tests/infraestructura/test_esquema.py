@@ -43,7 +43,6 @@ def test_cubre_los_agregados_del_dominio(tablas):
         "grupos",
         "enfrentamientos",
         "marcadores",
-        "plantillas",
     } <= tablas
 
 

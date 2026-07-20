@@ -23,7 +23,6 @@ from ..domain.identidades import (
     ParticipanteId,
 )
 from ..domain.participante import Participante
-from ..domain.plantilla import PlantillaDeCompeticion
 
 
 class CompeticionesEnMemoria:
@@ -89,13 +88,3 @@ class EnfrentamientosEnMemoria:
     def eliminar_de_fase(self, fase_id: FaseId) -> None:
         self._por_fase.pop(fase_id, None)
 
-
-class PlantillasEnMemoria:
-    def __init__(self, plantillas: Iterable[PlantillaDeCompeticion] = ()) -> None:
-        self._por_id = {p.id: p for p in plantillas}
-
-    def obtener(self, plantilla_id: str) -> PlantillaDeCompeticion | None:
-        return self._por_id.get(plantilla_id)
-
-    def listar(self) -> tuple[PlantillaDeCompeticion, ...]:
-        return tuple(self._por_id.values())

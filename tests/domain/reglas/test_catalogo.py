@@ -109,3 +109,40 @@ class TestReglasNoRegistradas:
 
         with pytest.raises(ReglaInvalida):
             nombre_de_fixture(MiGenerador())
+
+
+class TestCrearDesdeElNombre:
+    """Cubierto antes por los tests de plantilla, que ya no existen."""
+
+    def test_crea_una_puntuacion(self):
+        assert crear_puntuacion("por_sets") == PorSets()
+
+    def test_pasa_los_parametros(self):
+        assert crear_puntuacion("victoria_derrota", {"victoria": 2}).victoria == 2
+
+    def test_crea_un_generador_de_fixture(self):
+        assert type(crear_fixture("round_robin")).__name__ == "RoundRobin"
+        assert type(crear_fixture("eliminacion_directa")).__name__ == "EliminacionDirecta"
+
+    def test_el_enfrentamiento_directo_recibe_la_puntuacion(self):
+        criterio = crear_desempate("enfrentamiento_directo", PorSets())
+        assert criterio.puntuacion == PorSets()
+
+    def test_los_demas_criterios_la_ignoran(self):
+        assert crear_desempate("puntos", PorSets()) == PorPuntos()
+
+    def test_una_puntuacion_inexistente_lista_las_que_hay(self):
+        with pytest.raises(ReglaInvalida, match="por_sets"):
+            crear_puntuacion("por_karma")
+
+    def test_un_desempate_inexistente_tambien(self):
+        with pytest.raises(ReglaInvalida, match="enfrentamiento_directo"):
+            crear_desempate("por_simpatia", VictoriaDerrota())
+
+    def test_un_fixture_inexistente_tambien(self):
+        with pytest.raises(ReglaInvalida, match="round_robin"):
+            crear_fixture("suizo")
+
+    def test_parametros_que_la_regla_no_conoce(self):
+        with pytest.raises(ReglaInvalida, match="Parámetros inválidos"):
+            crear_puntuacion("por_sets", {"color": "azul"})

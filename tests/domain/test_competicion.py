@@ -293,8 +293,8 @@ class TestReglasDeCompeticion:
 
 
 class TestFormatoYCalendario:
-    """La competición conserva lo que la plantilla configuró: sin esto no
-    sabría cómo sortearse."""
+    """La competición lleva su formato y su calendario: sin ellos no sabría
+    cómo sortearse."""
 
     def test_una_fase_trae_su_generador_y_su_configuracion(self):
         fase = Fase(

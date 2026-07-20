@@ -31,19 +31,30 @@ from itc_deporte.aplicacion.servicios import (
     ServicioDeResultados,
     ServicioDeSorteo,
 )
-from itc_deporte.domain.competicion import EstadoCompeticion
-from itc_deporte.domain.enfrentamiento import Enfrentamiento, Marcador
 from itc_deporte.infraestructura.autenticacion import (
     AutenticadorEnMemoria,
     ConcesionesEnMemoria,
 )
+from itc_deporte.domain.calendario import Calendario
+from itc_deporte.domain.competicion import (
+    Competicion,
+    Deporte,
+    EstadoCompeticion,
+    FaseDeGrupos,
+    FaseEliminatoria,
+    ReglasDeCompeticion,
+)
+from itc_deporte.domain.enfrentamiento import Enfrentamiento, Marcador
+from itc_deporte.domain.reglas.fixture import ConfigFixture
+from itc_deporte.domain.reglas.puntuacion import PorSets
 from itc_deporte.infraestructura.memoria import (
     CompeticionesEnMemoria,
     EnfrentamientosEnMemoria,
     ParticipantesEnMemoria,
-    PlantillasEnMemoria,
 )
-from itc_deporte.infraestructura.plantillas import cargar_semillas
+
+MICROFUTBOL = Deporte("microfutbol", "Microfútbol", "⚽")
+VOLEIBOL = Deporte("voleyball", "Voleyball", "🏐")
 
 LUNES = dt.date(2026, 7, 20)
 
@@ -58,7 +69,6 @@ def repos():
         "competiciones": CompeticionesEnMemoria(),
         "participantes": ParticipantesEnMemoria(),
         "enfrentamientos": EnfrentamientosEnMemoria(),
-        "plantillas": PlantillasEnMemoria(cargar_semillas()),
         "concesiones": ConcesionesEnMemoria(
             [
                 Concesion("admin", Rol.ADMIN),
@@ -77,7 +87,7 @@ def servicios(repos):
     )
     return {
         "competiciones": ServicioDeCompeticiones(
-            repos["competiciones"], repos["plantillas"], politica
+            repos["competiciones"], politica
         ),
         "inscripciones": ServicioDeInscripciones(
             repos["competiciones"], repos["participantes"], politica
@@ -103,9 +113,35 @@ def servicios(repos):
     }
 
 
-def crear_liga(servicios, inscritos=4):
-    servicios["competiciones"].crear_desde_plantilla(
-        ADMIN, "itc-microfutbol", "c1", "Prueba"
+def competicion_de_prueba(id_="c1", nombre="Prueba", deporte=MICROFUTBOL, puntuacion=None):
+    """Arma una competición a mano, que es como se crean ahora.
+
+    Reproduce la configuración con la que opera el ITC —siete jornadas, sábados
+    a las 15:00, cuadro a 16— sin que eso sea una plantilla precargada.
+    """
+    reglas = ReglasDeCompeticion(puntuacion=puntuacion) if puntuacion else ReglasDeCompeticion()
+    return Competicion(
+        id=id_,
+        nombre=nombre,
+        deporte=deporte,
+        fases=(
+            FaseDeGrupos(
+                f"{id_}:0", "Fase de grupos", 0,
+                config_fixture=ConfigFixture(jornadas_forzadas=7),
+            ),
+            FaseEliminatoria(
+                f"{id_}:1", "Eliminación directa", 1,
+                fixture="eliminacion_directa", cupos=16,
+            ),
+        ),
+        reglas=reglas,
+        calendario=Calendario(dia_de_la_semana=5, hora=dt.time(15, 0)),
+    )
+
+
+def crear_liga(servicios, deporte=None, inscritos=4):
+    servicios["competiciones"].crear(
+        ADMIN, competicion_de_prueba(deporte=deporte or MICROFUTBOL)
     )
     for i in range(1, inscritos + 1):
         servicios["inscripciones"].inscribir(ADMIN, "c1", f"p{i}", f"Equipo {i}")
@@ -115,21 +151,15 @@ def crear_liga(servicios, inscritos=4):
 class TestCrearCompeticiones:
     def test_un_visitante_no_puede(self, servicios):
         with pytest.raises(PermisoDenegado, match="crear_competicion"):
-            servicios["competiciones"].crear_desde_plantilla(
-                CURIOSO, "itc-microfutbol", "c9"
-            )
+            servicios["competiciones"].crear(CURIOSO, competicion_de_prueba("c9", "Nueva"))
 
     def test_un_anonimo_tampoco(self, servicios):
         with pytest.raises(PermisoDenegado):
-            servicios["competiciones"].crear_desde_plantilla(
-                ANONIMO, "itc-microfutbol", "c9"
-            )
+            servicios["competiciones"].crear(ANONIMO, competicion_de_prueba("c9", "Nueva"))
 
     def test_un_registrador_tampoco(self, servicios):
         with pytest.raises(PermisoDenegado):
-            servicios["competiciones"].crear_desde_plantilla(
-                REGISTRADOR, "itc-microfutbol", "c9"
-            )
+            servicios["competiciones"].crear(REGISTRADOR, competicion_de_prueba("c9", "Nueva"))
 
     def test_un_visitante_no_cambia_el_estado(self, servicios):
         crear_liga(servicios, inscritos=1)
@@ -150,7 +180,7 @@ class TestAlcanceDeLaConcesion:
     def test_pero_no_en_otra(self, servicios):
         """Fuera de su competición es un visitante más."""
         crear_liga(servicios, inscritos=1)
-        servicios["competiciones"].crear_desde_plantilla(ADMIN, "itc-baloncesto", "c2")
+        servicios["competiciones"].crear(ADMIN, competicion_de_prueba("c2", "Otra"))
         with pytest.raises(PermisoDenegado, match="c2"):
             servicios["inscripciones"].inscribir(REGISTRADOR, "c2", "p9", "Ajenos")
 
@@ -170,7 +200,7 @@ class TestAlcanceDeLaConcesion:
 
     def test_el_ambito_sale_del_partido_no_de_quien_llama(self, servicios, repos):
         """Un registrador de c1 no toca un partido de c2 aunque lo pida por id."""
-        servicios["competiciones"].crear_desde_plantilla(ADMIN, "itc-baloncesto", "c2")
+        servicios["competiciones"].crear(ADMIN, competicion_de_prueba("c2", "Otra"))
         repos["enfrentamientos"].guardar(
             Enfrentamiento("x1", "a", "b", competicion_id="c2", fase_id="c2:0")
         )

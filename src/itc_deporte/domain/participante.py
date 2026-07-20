@@ -45,7 +45,7 @@ class Participante:
 
     `eq=False` es deliberado: la igualdad se define por `id`, como corresponde a
     una entidad. Dos instancias con el mismo id son el mismo participante aunque
-    difieran en nombre, división o plantilla de miembros.
+    difieran en nombre, división o composición.
     """
 
     id: ParticipanteId

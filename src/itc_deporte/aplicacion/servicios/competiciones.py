@@ -1,24 +1,26 @@
-"""Crear y consultar competiciones."""
+"""Crear y consultar competiciones.
+
+Crear una competición es armarla y darla de alta. El deporte y el sistema de
+puntuación se eligen del catálogo de reglas (`domain/reglas/catalogo.py`), que
+es lo que los mantiene como dato configurable.
+"""
 
 from __future__ import annotations
 
 from ...domain.competicion import Competicion, EstadoCompeticion
 from ...domain.identidades import CompeticionId
-from ...domain.plantilla import PlantillaDeCompeticion
 from ..errores import NoEncontrado, OperacionInvalida
 from ..permisos import Accion, Identidad, Politica
-from ..puertos import RepositorioDeCompeticiones, RepositorioDePlantillas
+from ..puertos import RepositorioDeCompeticiones
 
 
 class ServicioDeCompeticiones:
     def __init__(
         self,
         competiciones: RepositorioDeCompeticiones,
-        plantillas: RepositorioDePlantillas,
         politica: Politica,
     ) -> None:
         self._competiciones = competiciones
-        self._plantillas = plantillas
         self._politica = politica
 
     # ── Consultas ───────────────────────────────────────────────────────────
@@ -32,28 +34,10 @@ class ServicioDeCompeticiones:
             raise NoEncontrado(f"No existe la competición {competicion_id!r}.")
         return competicion
 
-    def catalogo_de_plantillas(self) -> tuple[PlantillaDeCompeticion, ...]:
-        """Lo que alimenta la pestaña "Plantillas" al crear una competición."""
-        return self._plantillas.listar()
-
     # ── Comandos ────────────────────────────────────────────────────────────
 
-    def crear_desde_plantilla(
-        self,
-        actor: Identidad,
-        plantilla_id: str,
-        competicion_id: CompeticionId,
-        nombre: str | None = None,
-        temporada: str | None = None,
-    ) -> Competicion:
-        self._politica.exigir(actor, Accion.CREAR_COMPETICION)
-        plantilla = self._plantillas.obtener(plantilla_id)
-        if plantilla is None:
-            raise NoEncontrado(f"No existe la plantilla {plantilla_id!r}.")
-        return self.crear(actor, plantilla.instanciar(competicion_id, nombre, temporada))
-
     def crear(self, actor: Identidad, competicion: Competicion) -> Competicion:
-        """Da de alta una competición ya armada, venga de plantilla o de cero."""
+        """Da de alta una competición ya armada."""
         self._politica.exigir(actor, Accion.CREAR_COMPETICION)
         if self._competiciones.obtener(competicion.id) is not None:
             raise OperacionInvalida(f"Ya existe la competición {competicion.id!r}.")

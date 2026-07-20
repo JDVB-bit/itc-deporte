@@ -60,7 +60,6 @@ $$;
 -- identificarse. Escribir exige concesión.
 
 alter table deportes       enable row level security;
-alter table plantillas     enable row level security;
 alter table competiciones  enable row level security;
 alter table divisiones     enable row level security;
 alter table participantes  enable row level security;
@@ -74,7 +73,6 @@ alter table logros         enable row level security;
 alter table concesiones    enable row level security;
 
 create policy "lectura publica" on deportes       for select using (true);
-create policy "lectura publica" on plantillas     for select using (true);
 create policy "lectura publica" on competiciones  for select using (true);
 create policy "lectura publica" on divisiones     for select using (true);
 create policy "lectura publica" on participantes  for select using (true);
@@ -88,7 +86,6 @@ create policy "lectura publica" on logros         for select using (true);
 
 -- Solo el admin toca el catálogo y la estructura de las competiciones.
 create policy "solo admin" on deportes      for all using (es_admin()) with check (es_admin());
-create policy "solo admin" on plantillas    for all using (es_admin()) with check (es_admin());
 create policy "solo admin" on competiciones for all using (es_admin()) with check (es_admin());
 create policy "solo admin" on divisiones    for all using (es_admin()) with check (es_admin());
 create policy "solo admin" on fases         for all using (es_admin()) with check (es_admin());

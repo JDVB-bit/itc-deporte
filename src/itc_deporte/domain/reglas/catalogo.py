@@ -1,12 +1,13 @@
 """Resolución de reglas por nombre.
 
-Una plantilla tiene que poder viajar como JSON, y un objeto `PorSets()` no cabe
-en un fichero de texto. Lo que se guarda es el nombre de la regla y sus
-parámetros; este módulo los convierte en la estrategia correspondiente.
+Una competición se guarda como filas, y un objeto `PorSets()` no cabe en una
+columna. Lo que se persiste es el nombre de la regla y sus parámetros; este
+módulo convierte en las dos direcciones.
 
-Es también el registro de lo que existe: dar de alta una regla nueva es añadir
-una entrada aquí, y a partir de ese momento cualquier plantilla puede pedirla
-sin que nada más cambie.
+Es también el registro de lo que existe: dar de alta un deporte con reglas
+propias es añadir una entrada aquí, y a partir de ese momento cualquier
+competición puede pedirla sin que nada más cambie. Es lo que mantiene deportes
+y puntuaciones como dato configurable.
 """
 
 from __future__ import annotations

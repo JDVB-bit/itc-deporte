@@ -29,7 +29,6 @@ from ...domain.identidades import (
     ParticipanteId,
 )
 from ...domain.participante import Participante
-from ...domain.plantilla import PlantillaDeCompeticion
 from ...aplicacion.permisos import Concesion, Rol
 from . import mapeadores as m
 
@@ -218,36 +217,6 @@ class EnfrentamientosSupabase(_Base):
             .execute()
         )
         return {f["enfrentamiento_id"]: f for f in filas}
-
-
-class PlantillasSupabase(_Base):
-    """Las plantillas se guardan serializadas en `definicion`.
-
-    Las semillas del repositorio (`plantillas/itc.json`) se cargan con
-    `cargar_semillas()` y se suben una vez en la migración; a partir de ahí ITC
-    es una fila más, como cualquier plantilla de usuario.
-    """
-
-    def obtener(self, plantilla_id: str) -> PlantillaDeCompeticion | None:
-        fila = self._una(
-            self._db.table("plantillas").select("*").eq("id", plantilla_id).execute()
-        )
-        return _plantilla_desde_fila(fila) if fila else None
-
-    def listar(self) -> tuple[PlantillaDeCompeticion, ...]:
-        filas = self._filas(self._db.table("plantillas").select("*").execute())
-        return tuple(_plantilla_desde_fila(f) for f in filas)
-
-
-def _plantilla_desde_fila(fila: dict) -> PlantillaDeCompeticion:
-    import json
-
-    from ..plantillas.cargador import _plantilla
-
-    definicion = fila["definicion"]
-    if isinstance(definicion, str):
-        definicion = json.loads(definicion)
-    return _plantilla(definicion, ())
 
 
 class ConcesionesSupabase(_Base):

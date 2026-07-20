@@ -21,14 +21,6 @@ create table deportes (
     icono  text not null default ''
 );
 
-create table plantillas (
-    id          text primary key,
-    nombre      text not null check (length(trim(nombre)) > 0),
-    descripcion text not null default '',
-    definicion  jsonb not null,
-    es_semilla  boolean not null default false
-);
-
 -- ── Competición ─────────────────────────────────────────────────────────────
 
 create table competiciones (
@@ -38,8 +30,8 @@ create table competiciones (
     temporada  text,
     estado     text not null default 'Borrador'
                check (estado in ('Borrador', 'En curso', 'Finalizada')),
-    -- Sistema de puntuación y criterios de desempate, como los serializa
-    -- `PlantillaDeCompeticion`: {"puntuacion": {...}, "desempate": [...]}.
+    -- Sistema de puntuación, criterios de desempate y calendario:
+    -- {"puntuacion": {...}, "desempate": [...], "calendario": {...}}.
     reglas     jsonb not null default '{}'::jsonb
 );
 

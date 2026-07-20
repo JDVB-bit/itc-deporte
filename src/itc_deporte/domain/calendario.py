@@ -4,8 +4,8 @@ Antes: `dias = (5 - hoy.weekday()) % 7 or 7` y la cadena `"15:00"` escritas a
 mano dentro del sorteo. Sábado y las tres de la tarde eran una decisión del
 código, no del organizador.
 
-Vive en su propio módulo porque lo necesitan tanto la competición como la
-plantilla, y si colgara de cualquiera de las dos se formaría un ciclo.
+Vive en su propio módulo para que la competición lo componga sin arrastrar
+dependencias en la dirección equivocada.
 """
 
 from __future__ import annotations
