@@ -188,3 +188,9 @@ class TestConsultas:
 
     def test_marcador_de_sin_marcador_es_none(self):
         assert enf().marcador_de("p1") is None
+
+
+class TestIdentidadIndexable:
+    def test_los_enfrentamientos_se_pueden_usar_como_clave(self):
+        indice = {enf(): "acta"}
+        assert indice[enf(local="p7", visitante="p8")] == "acta"

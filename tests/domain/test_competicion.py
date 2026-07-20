@@ -222,3 +222,34 @@ class TestComposicionDeFases:
         """Copa a partido único, sin fase previa."""
         c = competicion(fases=(FaseEliminatoria("e", "Copa", 0, cupos=16),))
         assert c.primera_fase.cupos == 16
+
+
+class TestIdentidadDeLasEntidades:
+    """Las entidades se indexan por id: hash y comparación deben ser coherentes."""
+
+    def test_los_grupos_se_pueden_usar_como_clave(self):
+        indice = {Grupo("g1", "Grupo A"): "tabla"}
+        assert indice[Grupo("g1", "Renombrado", ("p1",))] == "tabla"
+
+    def test_las_fases_se_pueden_usar_como_clave(self):
+        indice = {Fase("f1", "Grupos", 0): "jornadas"}
+        assert indice[FaseDeGrupos("f1", "Otra", 9)] == "jornadas"
+
+    def test_las_competiciones_se_pueden_usar_como_clave(self):
+        indice = {competicion(): "datos"}
+        assert indice[competicion(nombre="Otro nombre")] == "datos"
+
+    def test_ninguna_entidad_se_compara_con_otros_tipos(self):
+        assert Grupo("g1", "A") != "g1"
+        assert Fase("f1", "Grupos", 0) != "f1"
+        assert competicion() != "c1"
+
+    def test_rechazan_id_vacio(self):
+        with pytest.raises(ErrorDeDominio):
+            Grupo("", "Grupo A")
+        with pytest.raises(ErrorDeDominio):
+            Competicion(id="", nombre="X", deporte=VOLEIBOL)
+
+    def test_una_fase_rechaza_nombre_vacio(self):
+        with pytest.raises(ErrorDeDominio):
+            Fase("f1", "   ", 0)

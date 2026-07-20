@@ -156,3 +156,9 @@ class TestJerarquiaProfunda:
 
     def test_la_unica_hoja_es_el_curso(self, catalogo):
         assert [d.id for d in catalogo.hojas()] == ["601"]
+
+
+class TestIdentidadIndexable:
+    def test_las_divisiones_se_pueden_usar_como_clave(self):
+        indice = {Division("601", "601"): "PRIMERA"}
+        assert indice[Division("601", "Sexto Uno", padre_id="PRIMERA")] == "PRIMERA"
