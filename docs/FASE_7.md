@@ -23,8 +23,8 @@ Esto es lo que más te recomiendo de todo el documento. Crea un proyecto nuevo e
 Supabase (el plan gratuito sirve) y aplica ahí los pasos 2 y 3 antes de tocar el
 de verdad.
 
-Motivo: los repositorios que escribí **nunca se han ejecutado**. Si tienen un
-fallo, prefieres encontrarlo en una base vacía.
+Motivo: la suite de contrato **vacía las tablas** antes y después de cada test.
+En una base con datos sería destructiva.
 
 ## Paso 2 — Aplicar el esquema
 
@@ -91,11 +91,23 @@ las mismas comprobaciones que ya pasan contra los de memoria.
 la fixture `limpiar` **borra el contenido de las tablas** antes y después de cada
 test.
 
-### Si fallan
+### Estado
 
-Es el resultado más probable, y está bien. Pásame la salida y lo arreglo: para
-eso existen esos tests. Lo que no quiero es que construyamos la interfaz encima
-sin haberlos corrido.
+**Los 61 pasan contra una instancia real:** 42 de contrato, 14 de RLS y 5 del
+adaptador de Auth. No queda nada del sistema nuevo sin comprobar contra una base
+de verdad.
+
+Las políticas hacen lo que deben: lectura pública sí, escritura anónima no, y un
+anónimo no puede insertarse como administrador.
+
+Dos cosas que salieron al correrlo y conviene saber antes de usar el panel de
+Registradores:
+
+- Supabase **rechaza dominios de correo inventados** (`.test`, `.local`). Los
+  registradores necesitan una dirección real.
+- **Invitar por correo está limitado** a unos cuatro envíos por hora en el plan
+  gratuito. Si das de alta a varios seguidos, el resto tendrá que esperar; a
+  quien ya tenga cuenta se le concede sin enviar nada.
 
 ---
 

@@ -190,14 +190,14 @@ class TestParticipante:
         assert vuelta.miembros == original.miembros
 
     def test_los_miembros_referencian_al_participante(self):
-        original = Participante("p1", "X", miembros=(Miembro("m1", "Ana"),))
+        original = Participante("p1", "X", "c1", miembros=(Miembro("m1", "Ana"),))
         assert m.miembros_a_filas(original)[0]["participante_id"] == "p1"
 
     def test_sin_miembros_no_produce_filas(self):
-        assert m.miembros_a_filas(Participante("p1", "X")) == []
+        assert m.miembros_a_filas(Participante("p1", "X", "c1")) == []
 
     def test_es_serializable(self):
-        original = Participante("p1", "X", miembros=(Miembro("m1", "Ana", 7),))
+        original = Participante("p1", "X", "c1", miembros=(Miembro("m1", "Ana", 7),))
         assert es_serializable(m.participante_a_fila(original))
         assert es_serializable(m.miembros_a_filas(original))
 

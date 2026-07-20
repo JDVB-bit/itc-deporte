@@ -1,14 +1,12 @@
 """Adaptadores de Supabase.
 
-El DDL del esquema objetivo y el proveedor de identidad. Los **repositorios**
-llegan con la Fase 7, cuando el esquema se aplique: escribirlos antes sería
-comprometer código que no puede ejecutarse contra ninguna tabla real, que es el
-antipatrón que dejó muerto el bracket anterior. Cuando existan, heredarán los
-tests de `tests/contratos/`.
+El DDL del esquema objetivo, los repositorios y el proveedor de identidad. Los
+repositorios heredan los tests de contrato de los de memoria, así que ninguna de
+las dos implementaciones puede desviarse de la otra en silencio.
 
-`AutenticadorSupabase` sí está aquí porque Supabase Auth existe ya y no depende
-del esquema nuevo. Su lógica de traducción está probada; la forma de la API de
-`supabase-py` no, y eso exige una instancia real (`pytest -m supabase`).
+`AutenticadorSupabase` está aquí porque Supabase Auth no depende del esquema
+nuevo. Todo lo de este paquete se comprueba con `pytest -m supabase` contra una
+instancia real.
 """
 
 from pathlib import Path

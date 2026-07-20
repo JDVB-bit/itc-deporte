@@ -4,11 +4,11 @@ Quedan finos porque la traducción vive en `mapeadores.py`, que sí está probad
 Lo que hay aquí es la conversación con la red: qué se consulta, en qué orden y
 cuántas veces.
 
-**Estado de verificación.** Ningún test de este repositorio ejecuta este código.
-Cumplen los protocolos de `puertos.py` y heredan los tests de contrato de
-`tests/contratos/`, pero esos solo corren con `pytest -m supabase` contra una
-instancia real, y eso no se ha hecho. Hasta entonces esto es código escrito con
-cuidado y sin comprobar.
+**Estado de verificación: comprobados.** Heredan los tests de contrato de
+`tests/contratos/` y los 42 pasan contra una instancia real
+(`pytest -m supabase`). Lo que corre aquí es lo mismo que corre contra los
+repositorios en memoria, así que ninguna implementación puede desviarse de la
+otra sin que la suite lo diga.
 
 Una nota sobre las escrituras: `guardar_muchos` hace **un** `upsert` con todas
 las filas. Es el arreglo del problema 10 del diagnóstico —el sorteo insertaba un
@@ -179,9 +179,25 @@ class EnfrentamientosSupabase(_Base):
         self.guardar_muchos([enfrentamiento])
 
     def guardar_muchos(self, enfrentamientos: Sequence[Enfrentamiento]) -> None:
-        """Una escritura para todo el lote, no una por enfrentamiento."""
+        """Una escritura para todo el lote, no una por enfrentamiento.
+
+        El dominio admite un enfrentamiento sin fase ni competición —el motor de
+        clasificación y el de brackets trabajan con partidos sin saber dónde se
+        guardan—, pero persistirlo sí las exige. Se comprueba aquí para que el
+        error diga qué falta en vez de llegar como una violación de restricción.
+        """
         if not enfrentamientos:
             return
+        huerfanos = [
+            e.id
+            for e in enfrentamientos
+            if not e.competicion_id or not e.fase_id
+        ]
+        if huerfanos:
+            raise ValueError(
+                "No se puede guardar un enfrentamiento sin competición ni fase: "
+                + ", ".join(map(repr, huerfanos))
+            )
         self._db.table("enfrentamientos").upsert(
             [m.enfrentamiento_a_fila(e) for e in enfrentamientos], on_conflict="id"
         ).execute()

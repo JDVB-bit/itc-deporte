@@ -3,6 +3,12 @@
 El Admin añade a alguien por correo —y el proveedor de identidad se encarga de
 invitarlo si aún no existe— o por usuario si no hay correo. La concesión es
 siempre sobre una competición concreta.
+
+Aviso sobre invitar por correo: el proveedor limita cuántos correos se envían
+por hora (unos cuatro en el plan gratuito de Supabase). Dar de alta a varios
+registradores seguidos puede toparse con ese tope; el adaptador lo traduce a
+`LimiteDeInvitaciones`. A quien ya tenga cuenta se le concede sin enviar nada,
+y `otorgar_por_usuario` no envía correo en ningún caso.
 """
 
 from __future__ import annotations

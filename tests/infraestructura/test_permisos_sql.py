@@ -3,9 +3,9 @@
 **Límite de estos tests.** `sqlglot` no entiende `CREATE POLICY` ni
 `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`: los reconoce como comandos opacos y
 no comprueba su sintaxis. Así que de este fichero solo queda verificada la tabla
-`concesiones`, sus índices y las dos funciones. **Las políticas RLS no las valida
-nada de este repositorio**; la única forma de comprobarlas es aplicarlas contra
-Postgres, y eso ocurre en la Fase 7.
+`concesiones`, sus índices y las dos funciones. Las políticas RLS no las valida este fichero: eso lo hace
+`tests/contratos/test_rls.py`, que las ejercita con la clave `anon` contra una
+instancia real.
 
 Lo que sí se comprueba aquí es de otro tipo y sí tiene valor: que cada tabla del
 esquema tenga RLS activado y al menos una política, para que ninguna quede
@@ -121,11 +121,3 @@ class TestNingunaTablaQuedaExpuesta:
             for linea in declaraciones
         )
 
-
-@pytest.mark.supabase
-class TestContraPostgresReal:
-    def test_pendiente_de_aplicarse(self):
-        pytest.skip(
-            "Las políticas RLS solo se validan aplicándolas contra Postgres. "
-            "Ocurre en la Fase 7, con la migración."
-        )

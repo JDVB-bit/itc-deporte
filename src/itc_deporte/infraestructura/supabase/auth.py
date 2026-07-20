@@ -8,15 +8,20 @@ Lo que se gana además del correo: `auth.uid()` disponible dentro de Postgres, q
 es lo que permite escribir las políticas RLS de `permisos.sql` como segunda línea
 de defensa por debajo de la capa de servicio.
 
-**Estado de verificación.** La lógica de traducción de este módulo está cubierta
-por tests con un doble del cliente. Lo que ningún test de este repositorio
-comprueba es que las llamadas coincidan con la API real de `supabase-py`: eso
-exige una instancia de verdad y son los tests marcados con `@pytest.mark.supabase`,
-que no se han ejecutado nunca. Antes de confiar en este adaptador en producción,
-hay que correrlos contra un proyecto real.
+**Estado de verificación.** La lógica de traducción está cubierta con un doble
+del cliente, y la forma de la API —`list_users`, `create_user`, `.user.id`— quedó
+confirmada contra una instancia real al montar las fixtures de contrato. El
+adaptador completo se ejercita en `tests/infraestructura/test_auth_supabase.py`
+bajo el marcador `supabase`.
 
 `invitar` y `por_email` usan la API de administración, que exige la clave
 `service_role`. No debe llegar nunca al navegador.
+
+**Sobre el límite de invitaciones.** `invite_user_by_email` envía un correo de
+verdad, y Supabase limita cuántos se pueden mandar por hora —unos cuatro en el
+plan gratuito. Un Admin que dé de alta varios registradores seguidos se topará
+con ello. Se traduce a `LimiteDeInvitaciones` para que la interfaz pueda decir
+"espera un rato" en lugar de mostrar un error de red.
 """
 
 from __future__ import annotations
@@ -24,6 +29,14 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 from ...aplicacion.permisos import Identidad
+
+
+class LimiteDeInvitaciones(RuntimeError):
+    """Supabase rechazó la invitación por exceso de correos enviados.
+
+    No es un fallo del sistema: es una cuota del proveedor. Reintentar más tarde
+    funciona, y dar de alta por usuario (`otorgar_por_usuario`) la evita.
+    """
 
 
 class ClienteSupabase(Protocol):
@@ -62,7 +75,16 @@ class AutenticadorSupabase:
         existente = self.por_email(email)
         if existente is not None:
             return existente
-        respuesta = self._cliente.auth.admin.invite_user_by_email(email)
+        try:
+            respuesta = self._cliente.auth.admin.invite_user_by_email(email)
+        except Exception as error:
+            if _es_limite_de_correos(error):
+                raise LimiteDeInvitaciones(
+                    f"Supabase no aceptó invitar a {email!r}: se ha alcanzado el "
+                    "límite de correos por hora. Inténtalo más tarde, o concede "
+                    "el permiso por usuario si ya tiene cuenta."
+                ) from error
+            raise
         identidad = _a_identidad(getattr(respuesta, "user", None))
         if identidad is None:
             raise RuntimeError(f"Supabase no devolvió un usuario al invitar a {email!r}.")
@@ -75,6 +97,13 @@ class AutenticadorSupabase:
         if isinstance(respuesta, list):
             return respuesta
         return list(getattr(respuesta, "users", []))
+
+
+def _es_limite_de_correos(error: Exception) -> bool:
+    """Distingue la cuota de envío de cualquier otro fallo de la API."""
+    if getattr(error, "status", None) == 429:
+        return True
+    return "rate limit" in str(error).lower()
 
 
 def _a_identidad(usuario: Any) -> Identidad | None:

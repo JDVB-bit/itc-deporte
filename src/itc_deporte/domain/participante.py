@@ -50,7 +50,7 @@ class Participante:
 
     id: ParticipanteId
     nombre: str
-    competicion_id: CompeticionId | None = None
+    competicion_id: CompeticionId
     division_id: DivisionId | None = None
     miembros: tuple[Miembro, ...] = ()
 
@@ -59,6 +59,11 @@ class Participante:
             raise ErrorDeDominio("Un participante necesita un id.")
         if not self.nombre.strip():
             raise ErrorDeDominio("Un participante necesita un nombre no vacío.")
+        if not self.competicion_id:
+            raise ErrorDeDominio(
+                f"El participante {self.id!r} necesita una competición: existe "
+                "dentro de una, no por su cuenta."
+            )
         ids = [m.id for m in self.miembros]
         if len(ids) != len(set(ids)):
             raise ErrorDeDominio(

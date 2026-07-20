@@ -6,9 +6,8 @@ usuario sin id— se resuelven como deben.
 
 **Lo que NO verifican:** que las llamadas coincidan con la API real de
 `supabase-py`. El doble responde lo que yo supuse que responde Supabase; si esa
-suposición es errónea, estos tests pasan igual. Comprobarlo exige una instancia
-de verdad, y es lo que hacen los tests marcados con `supabase`, que aún no se han
-ejecutado nunca.
+suposición es errónea, estos tests pasan igual. Eso lo comprueba
+`TestContraSupabaseReal`, al final, bajo el marcador `supabase`.
 """
 
 from __future__ import annotations
@@ -161,16 +160,62 @@ class TestInvitar:
 
 @pytest.mark.supabase
 class TestContraSupabaseReal:
-    """Lo único que puede confirmar que la API es la que supongo.
+    """El adaptador contra una instancia de verdad.
 
-    No se ha ejecutado nunca. Para correrlos hace falta un proyecto de Supabase
-    y su clave `service_role`:
+    Dos cosas aprendidas al correrlo la primera vez, ambas del proveedor y no
+    del adaptador:
 
-        pytest -m supabase
+    - Supabase **rechaza los dominios inventados** como `.test`. Hay que usar
+      uno con TLD real.
+    - `invite_user_by_email` envía un correo y está limitado a unos cuatro por
+      hora. Por eso aquí se invita **una sola vez** y el resto de casos se
+      montan con `create_user`, que no manda nada.
     """
 
-    def test_pendiente_de_ejecutarse_contra_una_instancia(self):
-        pytest.skip(
-            "Requiere un proyecto real de Supabase y la clave service_role. "
-            "Sin esto, la forma de la API de supabase-py queda sin verificar."
+    CORREO = "adaptador-itc@example.com"
+
+    @pytest.fixture
+    def cliente(self):
+        import sys
+        from pathlib import Path
+
+        sys.path.insert(0, str(Path(__file__).parent.parent / "contratos"))
+        from conftest import cliente_supabase
+
+        return cliente_supabase("SUPABASE_KEY")
+
+    @pytest.fixture
+    def autenticador(self, cliente):
+        return AutenticadorSupabase(cliente)
+
+    @pytest.fixture
+    def ya_registrado(self, cliente, autenticador):
+        """Da de alta sin enviar correo, para no gastar la cuota de invitaciones."""
+        existente = autenticador.por_email(self.CORREO)
+        if existente is not None:
+            return existente
+        creado = cliente.auth.admin.create_user(
+            {"email": self.CORREO, "password": "contrato-1234", "email_confirm": True}
         )
+        return Identidad(str(creado.user.id), self.CORREO)
+
+    def test_por_email_encuentra_a_quien_existe(self, autenticador, ya_registrado):
+        encontrado = autenticador.por_email(self.CORREO)
+        assert encontrado is not None
+        assert encontrado.usuario_id == ya_registrado.usuario_id
+
+    def test_por_email_no_inventa_a_quien_no_existe(self, autenticador):
+        assert autenticador.por_email("nadie-de-nadie@example.com") is None
+
+    def test_invitar_a_quien_ya_existe_no_envia_correo(
+        self, autenticador, ya_registrado
+    ):
+        """El atajo que evita gastar la cuota: si ya está, se devuelve tal cual."""
+        assert autenticador.invitar(self.CORREO).usuario_id == ya_registrado.usuario_id
+
+    def test_un_token_invalido_no_identifica(self, autenticador):
+        """Un JWT falsificado es alguien sin identificar, no un error."""
+        assert autenticador.identificar("jwt.falsificado.xxx") is None
+
+    def test_un_token_vacio_tampoco(self, autenticador):
+        assert autenticador.identificar("") is None

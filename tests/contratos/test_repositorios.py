@@ -43,9 +43,11 @@ def participante(id_="p1", competicion_id="c1", nombre="Los Tigres") -> Particip
 
 
 def enfrentamiento(
-    id_="e1", local="p1", visitante="p2", fase_id="f1"
+    id_="e1", local="p1", visitante="p2", fase_id="f1", competicion_id="c1"
 ) -> Enfrentamiento:
-    return Enfrentamiento(id_, local, visitante, fase_id=fase_id)
+    return Enfrentamiento(
+        id_, local, visitante, competicion_id=competicion_id, fase_id=fase_id
+    )
 
 
 # ── Competiciones ────────────────────────────────────────────────────────────
@@ -125,9 +127,13 @@ class ContratoDeParticipantes:
     def test_una_competicion_sin_inscritos_da_vacio(self, repositorio):
         assert repositorio.de_competicion("c9") == ()
 
-    def test_los_no_inscritos_no_salen_en_ninguna(self, repositorio):
-        repositorio.guardar(participante("p1", competicion_id=None))
-        assert repositorio.de_competicion("c1") == ()
+    def test_solo_salen_los_de_esa_competicion(self, repositorio):
+        """Antes este test guardaba un participante sin competición y esperaba
+        que no saliera en ninguna. Ese estado no existe: la base lo rechazaba
+        con una violación de restricción, y el dominio ya no deja construirlo."""
+        repositorio.guardar(participante("p1", competicion_id="c1"))
+        repositorio.guardar(participante("p2", competicion_id="c2"))
+        assert [p.id for p in repositorio.de_competicion("c2")] == ["p2"]
 
     def test_guardar_dos_veces_sobrescribe(self, repositorio):
         repositorio.guardar(participante(nombre="Los Tigres"))
@@ -221,46 +227,56 @@ class ContratoDeConcesiones:
     def repositorio(self) -> RepositorioDeConcesiones:
         raise NotImplementedError
 
+    @pytest.fixture
+    def usuario(self) -> str:
+        """Un usuario que exista de verdad.
+
+        En memoria vale cualquier cadena; contra Supabase tiene que ser un UUID
+        de `auth.users`, porque `concesiones.usuario_id` lo referencia. Lo
+        aporta cada implementación.
+        """
+        return "u1"
+
     def test_satisface_el_puerto(self, repositorio):
         assert isinstance(repositorio, RepositorioDeConcesiones)
 
-    def test_lo_otorgado_se_consulta_por_usuario(self, repositorio):
-        repositorio.otorgar(Concesion("u1", Rol.REGISTRADOR, "c1"))
-        assert len(repositorio.de_usuario("u1")) == 1
+    def test_lo_otorgado_se_consulta_por_usuario(self, repositorio, usuario):
+        repositorio.otorgar(Concesion(usuario, Rol.REGISTRADOR, "c1"))
+        assert len(repositorio.de_usuario(usuario)) == 1
 
-    def test_y_por_competicion(self, repositorio):
-        repositorio.otorgar(Concesion("u1", Rol.REGISTRADOR, "c1"))
+    def test_y_por_competicion(self, repositorio, usuario):
+        repositorio.otorgar(Concesion(usuario, Rol.REGISTRADOR, "c1"))
         assert len(repositorio.de_competicion("c1")) == 1
 
-    def test_un_usuario_sin_concesiones_da_vacio(self, repositorio):
-        assert repositorio.de_usuario("nadie") == ()
+    def test_un_usuario_sin_concesiones_da_vacio(self, repositorio, usuario):
+        assert repositorio.de_usuario(usuario) == ()
 
-    def test_otorgar_dos_veces_no_duplica(self, repositorio):
+    def test_otorgar_dos_veces_no_duplica(self, repositorio, usuario):
         for _ in range(2):
-            repositorio.otorgar(Concesion("u1", Rol.REGISTRADOR, "c1"))
-        assert len(repositorio.de_usuario("u1")) == 1
+            repositorio.otorgar(Concesion(usuario, Rol.REGISTRADOR, "c1"))
+        assert len(repositorio.de_usuario(usuario)) == 1
 
-    def test_conserva_el_rol(self, repositorio):
-        repositorio.otorgar(Concesion("u1", Rol.REGISTRADOR, "c1"))
-        assert repositorio.de_usuario("u1")[0].rol is Rol.REGISTRADOR
+    def test_conserva_el_rol(self, repositorio, usuario):
+        repositorio.otorgar(Concesion(usuario, Rol.REGISTRADOR, "c1"))
+        assert repositorio.de_usuario(usuario)[0].rol is Rol.REGISTRADOR
 
-    def test_una_concesion_global_no_lleva_competicion(self, repositorio):
-        repositorio.otorgar(Concesion("u1", Rol.ADMIN))
-        assert repositorio.de_usuario("u1")[0].competicion_id is None
+    def test_una_concesion_global_no_lleva_competicion(self, repositorio, usuario):
+        repositorio.otorgar(Concesion(usuario, Rol.ADMIN))
+        assert repositorio.de_usuario(usuario)[0].competicion_id is None
 
-    def test_revocar_una_competicion_no_toca_las_demas(self, repositorio):
-        repositorio.otorgar(Concesion("u1", Rol.REGISTRADOR, "c1"))
-        repositorio.otorgar(Concesion("u1", Rol.REGISTRADOR, "c2"))
-        repositorio.revocar("u1", "c1")
-        assert [c.competicion_id for c in repositorio.de_usuario("u1")] == ["c2"]
+    def test_revocar_una_competicion_no_toca_las_demas(self, repositorio, usuario):
+        repositorio.otorgar(Concesion(usuario, Rol.REGISTRADOR, "c1"))
+        repositorio.otorgar(Concesion(usuario, Rol.REGISTRADOR, "c2"))
+        repositorio.revocar(usuario, "c1")
+        assert [c.competicion_id for c in repositorio.de_usuario(usuario)] == ["c2"]
 
-    def test_revocar_la_global(self, repositorio):
-        repositorio.otorgar(Concesion("u1", Rol.ADMIN))
-        repositorio.revocar("u1")
-        assert repositorio.de_usuario("u1") == ()
+    def test_revocar_la_global(self, repositorio, usuario):
+        repositorio.otorgar(Concesion(usuario, Rol.ADMIN))
+        repositorio.revocar(usuario)
+        assert repositorio.de_usuario(usuario) == ()
 
-    def test_revocar_lo_que_no_existe_no_revienta(self, repositorio):
-        repositorio.revocar("nadie", "c1")
+    def test_revocar_lo_que_no_existe_no_revienta(self, repositorio, usuario):
+        repositorio.revocar(usuario, "c1")
 
 
 # ── Implementaciones ─────────────────────────────────────────────────────────

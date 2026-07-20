@@ -9,7 +9,13 @@
 -- la que se sustituye la tabla `usuarios` con bcrypt propio, que no tenía forma
 -- de hacerse visible dentro de Postgres.
 --
--- NO SE HA EJECUTADO todavía contra ninguna instancia.
+-- Aplicado y comprobado: las tablas, funciones e índices se crean sin error.
+--
+-- Lo que NO está comprobado es el **comportamiento** de las políticas. La suite
+-- de contrato corre con la clave `service_role`, que salta RLS por completo, de
+-- modo que nada de lo que pasa demuestra que estas políticas permitan o nieguen
+-- lo que deben. Eso lo comprueba `tests/contratos/test_rls.py`, que necesita
+-- además la clave `anon`.
 --
 -- `logros` y su política viven en `corte.sql`: esa tabla choca con la del
 -- sistema viejo, así que solo puede crearse cuando aquella se retire.

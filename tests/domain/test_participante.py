@@ -7,7 +7,7 @@ from itc_deporte.domain.participante import Miembro, Participante
 
 
 def participante(**cambios) -> Participante:
-    base = dict(id="p1", nombre="Los Tigres", division_id="601")
+    base = dict(id="p1", nombre="Los Tigres", competicion_id="c1", division_id="601")
     return Participante(**{**base, **cambios})
 
 
@@ -114,8 +114,12 @@ class TestMiembro:
 
 
 class TestPertenenciaACompeticion:
-    def test_un_participante_puede_no_estar_inscrito_todavia(self):
-        assert participante().competicion_id is None
+    def test_un_participante_existe_dentro_de_una_competicion(self):
+        """No es opcional: un participante suelto no significa nada, y la base
+        lo rechazaba con una violación de restricción cuando el dominio lo
+        permitía."""
+        with pytest.raises(ErrorDeDominio, match="necesita una competición"):
+            Participante(id="p1", nombre="Los Tigres", competicion_id="")
 
     def test_lleva_la_competicion_a_la_que_pertenece(self):
         inscrito = participante(competicion_id="c1")
