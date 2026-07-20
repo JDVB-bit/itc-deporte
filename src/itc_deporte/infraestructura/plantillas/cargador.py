@@ -16,11 +16,11 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from ...domain.calendario import Calendario
 from ...domain.competicion import Deporte
 from ...domain.division import Division
 from ...domain.errores import ErrorDeDominio
 from ...domain.plantilla import (
-    EspecificacionDeCalendario,
     EspecificacionDeFase,
     EspecificacionDeRegla,
     PlantillaDeCompeticion,
@@ -96,8 +96,8 @@ def _hora(texto: str) -> dt.time:
         raise CatalogoIlegible(f"Hora inválida: {texto!r}. Se espera HH:MM.") from None
 
 
-def _calendario(datos: Mapping[str, Any]) -> EspecificacionDeCalendario:
-    return EspecificacionDeCalendario(
+def _calendario(datos: Mapping[str, Any]) -> Calendario:
+    return Calendario(
         dia_de_la_semana=datos.get("dia_de_la_semana"),
         hora=_hora(datos.get("hora", "15:00")),
         cadencia_dias=datos.get("cadencia_dias", 7),

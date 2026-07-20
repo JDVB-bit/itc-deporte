@@ -77,15 +77,14 @@ class EnfrentamientosEnMemoria:
     def de_fase(self, fase_id: FaseId) -> tuple[Enfrentamiento, ...]:
         return tuple(self._por_fase.get(fase_id, {}).values())
 
-    def guardar(self, fase_id: FaseId, enfrentamiento: Enfrentamiento) -> None:
-        self._por_fase.setdefault(fase_id, {})[enfrentamiento.id] = enfrentamiento
+    def guardar(self, enfrentamiento: Enfrentamiento) -> None:
+        self._por_fase.setdefault(enfrentamiento.fase_id, {})[
+            enfrentamiento.id
+        ] = enfrentamiento
 
-    def guardar_muchos(
-        self, fase_id: FaseId, enfrentamientos: Sequence[Enfrentamiento]
-    ) -> None:
-        destino = self._por_fase.setdefault(fase_id, {})
+    def guardar_muchos(self, enfrentamientos: Sequence[Enfrentamiento]) -> None:
         for enfrentamiento in enfrentamientos:
-            destino[enfrentamiento.id] = enfrentamiento
+            self.guardar(enfrentamiento)
 
     def eliminar_de_fase(self, fase_id: FaseId) -> None:
         self._por_fase.pop(fase_id, None)

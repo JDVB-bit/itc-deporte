@@ -236,3 +236,22 @@ class TestPlantillasPropias:
         )
         (plantilla,) = cargar_catalogo(ruta)
         assert [d.id for d in plantilla.divisiones] == ["PESO"]
+
+
+class TestFormatoTrasladadoALaCompeticion:
+    """Lo que la plantilla configura debe sobrevivir a `instanciar`."""
+
+    def test_la_fase_de_grupos_conserva_las_siete_jornadas(self, microfutbol):
+        grupos = microfutbol.instanciar("c1").fases_ordenadas[0]
+        assert grupos.config_fixture.jornadas_forzadas == 7
+        assert grupos.fixture == "round_robin"
+
+    def test_la_eliminatoria_conserva_su_generador(self, microfutbol):
+        copa = microfutbol.instanciar("c1").fases_ordenadas[1]
+        assert copa.fixture == "eliminacion_directa"
+        assert copa.cupos == 16
+
+    def test_la_competicion_hereda_el_calendario_de_sabados(self, microfutbol):
+        calendario = microfutbol.instanciar("c1").calendario
+        assert calendario.dia_de_la_semana == 5
+        assert calendario.hora == dt.time(15, 0)

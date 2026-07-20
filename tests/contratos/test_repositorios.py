@@ -42,8 +42,10 @@ def participante(id_="p1", competicion_id="c1", nombre="Los Tigres") -> Particip
     return Participante(id=id_, nombre=nombre, competicion_id=competicion_id)
 
 
-def enfrentamiento(id_="e1", local="p1", visitante="p2") -> Enfrentamiento:
-    return Enfrentamiento(id_, local, visitante)
+def enfrentamiento(
+    id_="e1", local="p1", visitante="p2", fase_id="f1"
+) -> Enfrentamiento:
+    return Enfrentamiento(id_, local, visitante, fase_id=fase_id)
 
 
 # ── Competiciones ────────────────────────────────────────────────────────────
@@ -161,11 +163,11 @@ class ContratoDeEnfrentamientos:
         assert isinstance(repositorio, RepositorioDeEnfrentamientos)
 
     def test_lo_guardado_se_recupera_por_fase(self, repositorio):
-        repositorio.guardar("f1", enfrentamiento())
+        repositorio.guardar(enfrentamiento())
         assert len(repositorio.de_fase("f1")) == 1
 
     def test_se_recupera_por_id(self, repositorio):
-        repositorio.guardar("f1", enfrentamiento())
+        repositorio.guardar(enfrentamiento())
         assert repositorio.obtener("e1").local == "p1"
 
     def test_lo_que_no_existe_es_none(self, repositorio):
@@ -175,33 +177,33 @@ class ContratoDeEnfrentamientos:
         assert repositorio.de_fase("f9") == ()
 
     def test_las_fases_no_se_mezclan(self, repositorio):
-        repositorio.guardar("f1", enfrentamiento("e1"))
-        repositorio.guardar("f2", enfrentamiento("e2"))
+        repositorio.guardar(enfrentamiento("e1"))
+        repositorio.guardar(enfrentamiento("e2", fase_id="f2"))
         assert {e.id for e in repositorio.de_fase("f1")} == {"e1"}
 
     def test_guardar_muchos_los_guarda_todos(self, repositorio):
         partidos = [enfrentamiento(f"e{i}", "p1", f"p{i + 2}") for i in range(5)]
-        repositorio.guardar_muchos("f1", partidos)
+        repositorio.guardar_muchos(partidos)
         assert len(repositorio.de_fase("f1")) == 5
 
     def test_guardar_muchos_sobre_lo_ya_guardado_actualiza(self, repositorio):
-        repositorio.guardar("f1", enfrentamiento("e1"))
+        repositorio.guardar(enfrentamiento("e1"))
         cerrado = enfrentamiento("e1").finalizar(Marcador(2, 0))
-        repositorio.guardar_muchos("f1", [cerrado])
+        repositorio.guardar_muchos([cerrado])
         assert len(repositorio.de_fase("f1")) == 1
         assert repositorio.obtener("e1").esta_finalizado
 
     def test_guardar_muchos_con_lista_vacia_no_hace_nada(self, repositorio):
-        repositorio.guardar_muchos("f1", [])
+        repositorio.guardar_muchos([])
         assert repositorio.de_fase("f1") == ()
 
     def test_conserva_el_marcador(self, repositorio):
-        repositorio.guardar("f1", enfrentamiento().finalizar(Marcador(3, 1)))
+        repositorio.guardar(enfrentamiento().finalizar(Marcador(3, 1)))
         assert repositorio.obtener("e1").marcador == Marcador(3, 1)
 
     def test_eliminar_de_fase_vacia_solo_esa_fase(self, repositorio):
-        repositorio.guardar("f1", enfrentamiento("e1"))
-        repositorio.guardar("f2", enfrentamiento("e2"))
+        repositorio.guardar(enfrentamiento("e1"))
+        repositorio.guardar(enfrentamiento("e2", fase_id="f2"))
         repositorio.eliminar_de_fase("f1")
         assert repositorio.de_fase("f1") == ()
         assert len(repositorio.de_fase("f2")) == 1

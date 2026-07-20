@@ -19,6 +19,7 @@ from itc_deporte.legado.motor_actual import (
     generar_round_robin,
     parsear_enf,
     parsear_lado,
+    ganador_llave,
     tamano_bracket,
 )
 
@@ -252,3 +253,30 @@ class TestCalcularTabla:
         """
         tabla = calcular_tabla_desde([partido("A (601) vs B (602)", g1=2, g2=2)], {})
         assert all(f["PE"] == 1 for f in tabla)
+
+
+class TestGanadorDeLlave:
+    """El bracket heredado, que la Fase 8 retira junto con `data.py`."""
+
+    def fila(self, estado="Finalizado", g1=1, g2=0):
+        return dict(
+            estado=estado, g1=g1, g2=g2,
+            equipo1="A", curso1="601", equipo2="B", curso2="602",
+        )
+
+    def test_gana_el_primero(self):
+        assert ganador_llave(self.fila(g1=2, g2=1)) == ("A", "601")
+
+    def test_gana_el_segundo(self):
+        assert ganador_llave(self.fila(g1=0, g2=3)) == ("B", "602")
+
+    def test_un_empate_no_resuelve(self):
+        assert ganador_llave(self.fila(g1=1, g2=1)) == (None, None)
+
+    def test_un_partido_pendiente_no_resuelve(self):
+        assert ganador_llave(self.fila(estado="Pendiente")) == (None, None)
+
+
+class TestParseoDeNoTexto:
+    def test_parsear_lado_convierte_lo_que_no_es_texto(self):
+        assert parsear_lado(42) == ("42", "?")

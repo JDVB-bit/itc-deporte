@@ -16,8 +16,10 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from enum import Enum
 
+from .calendario import Calendario
 from .errores import ErrorDeDominio
 from .identidades import CompeticionId, FaseId, GrupoId, ParticipanteId
+from .reglas.fixture import ConfigFixture
 from .reglas.desempate import DESEMPATE_CLASICO, CriterioDeDesempate
 from .reglas.puntuacion import SistemaDePuntuacion, VictoriaDerrota
 
@@ -77,11 +79,19 @@ class Grupo:
 
 @dataclass(frozen=True, slots=True, eq=False)
 class Fase:
-    """Base común. `orden` fija la secuencia dentro de la competición."""
+    """Base común.
+
+    `orden` fija la secuencia dentro de la competición. `fixture` y
+    `config_fixture` dicen cómo se arma su calendario: sin ellos la fase no
+    sabría sortearse, y las siete jornadas del ITC volverían a ser un número
+    escondido en el código.
+    """
 
     id: FaseId
     nombre: str
     orden: int
+    fixture: str = "round_robin"
+    config_fixture: ConfigFixture = ConfigFixture()
 
     def __post_init__(self) -> None:
         if not self.id:
@@ -180,6 +190,7 @@ class Competicion:
     estado: EstadoCompeticion = EstadoCompeticion.BORRADOR
     fases: tuple[Fase, ...] = ()
     reglas: ReglasDeCompeticion = ReglasDeCompeticion()
+    calendario: Calendario = Calendario()
 
     def __post_init__(self) -> None:
         if not self.id:

@@ -12,12 +12,12 @@ exactamente el mismo mecanismo.
 
 from __future__ import annotations
 
-import datetime as dt
 from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
 from typing import Mapping
 
+from .calendario import Calendario
 from .competicion import (
     Competicion,
     CompeticionId,
@@ -70,48 +70,15 @@ class EspecificacionDeFase:
         return crear_fixture(self.fixture)
 
     def instanciar(self, fase_id: str) -> Fase:
-        if self.tipo is TipoDeFase.GRUPOS:
-            return FaseDeGrupos(fase_id, self.nombre, self.orden)
-        return FaseEliminatoria(fase_id, self.nombre, self.orden, cupos=self.cupos)
-
-
-@dataclass(frozen=True, slots=True)
-class EspecificacionDeCalendario:
-    """Cuándo se juega. Antes: sábado y 15:00 escritos a mano en el sorteo.
-
-    `dia_de_la_semana` sigue el convenio de `date.weekday()`: 0 es lunes y 5
-    sábado. En `None`, la primera jornada cae en la fecha de arranque.
-    """
-
-    dia_de_la_semana: int | None = None
-    hora: dt.time = dt.time(15, 0)
-    cadencia_dias: int = 7
-
-    def __post_init__(self) -> None:
-        if self.dia_de_la_semana is not None and not 0 <= self.dia_de_la_semana <= 6:
-            raise ErrorDeDominio(
-                f"Día de la semana inválido: {self.dia_de_la_semana}. Va de 0 a 6."
-            )
-        if self.cadencia_dias < 1:
-            raise ErrorDeDominio(f"Cadencia inválida: {self.cadencia_dias} días.")
-
-    def fechas(self, desde: dt.date, cantidad: int) -> tuple[dt.datetime, ...]:
-        """Las `cantidad` primeras fechas de juego a partir de `desde`.
-
-        Si hay día fijado, la primera cae en el siguiente que corresponda,
-        nunca el mismo `desde`: es el comportamiento del sorteo actual, que
-        estando en sábado programaba para el sábado siguiente.
-        """
-        if cantidad < 0:
-            raise ErrorDeDominio(f"No se pueden generar {cantidad} fechas.")
-        inicio = desde
-        if self.dia_de_la_semana is not None:
-            avance = (self.dia_de_la_semana - desde.weekday()) % 7
-            inicio = desde + dt.timedelta(days=avance or 7)
-        return tuple(
-            dt.datetime.combine(inicio + dt.timedelta(days=self.cadencia_dias * i), self.hora)
-            for i in range(cantidad)
+        comunes = dict(
+            nombre=self.nombre,
+            orden=self.orden,
+            fixture=self.fixture,
+            config_fixture=self.config_fixture,
         )
+        if self.tipo is TipoDeFase.GRUPOS:
+            return FaseDeGrupos(fase_id, **comunes)
+        return FaseEliminatoria(fase_id, **comunes, cupos=self.cupos)
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,7 +91,7 @@ class PlantillaDeCompeticion:
     puntuacion: EspecificacionDeRegla = EspecificacionDeRegla("victoria_derrota")
     desempate: tuple[str, ...] = ("puntos", "diferencia", "a_favor")
     fases: tuple[EspecificacionDeFase, ...] = ()
-    calendario: EspecificacionDeCalendario = EspecificacionDeCalendario()
+    calendario: Calendario = Calendario()
     es_semilla: bool = False
 
     def __post_init__(self) -> None:
@@ -171,4 +138,5 @@ class PlantillaDeCompeticion:
             temporada=temporada,
             fases=fases,
             reglas=self.reglas(),
+            calendario=self.calendario,
         )

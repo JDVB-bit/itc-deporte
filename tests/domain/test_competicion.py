@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import datetime as dt
+
 import pytest
 
 from itc_deporte.domain.competicion import (
@@ -12,6 +14,7 @@ from itc_deporte.domain.competicion import (
     Grupo,
     ReglasDeCompeticion,
 )
+from itc_deporte.domain.calendario import Calendario
 from itc_deporte.domain.enfrentamiento import Marcador
 from itc_deporte.domain.errores import ErrorDeDominio
 from itc_deporte.domain.reglas.desempate import (
@@ -19,6 +22,7 @@ from itc_deporte.domain.reglas.desempate import (
     PorAFavor,
     PorPuntos,
 )
+from itc_deporte.domain.reglas.fixture import ConfigFixture
 from itc_deporte.domain.reglas.puntuacion import PorSets, VictoriaDerrota
 
 VOLEIBOL = Deporte("voleyball", "Voleyball", "🏐")
@@ -102,7 +106,7 @@ class TestFaseDeGrupos:
             "f1",
             "Grupos",
             0,
-            (Grupo("a", "A", ("p1", "p2")), Grupo("b", "B", ("p3",))),
+            grupos=(Grupo("a", "A", ("p1", "p2")), Grupo("b", "B", ("p3",))),
         )
         assert fase.participantes == ("p1", "p2", "p3")
 
@@ -112,25 +116,25 @@ class TestFaseDeGrupos:
                 "f1",
                 "Grupos",
                 0,
-                (Grupo("a", "A", ("p1",)), Grupo("b", "B", ("p1",))),
+                grupos=(Grupo("a", "A", ("p1",)), Grupo("b", "B", ("p1",))),
             )
 
     def test_rechaza_grupos_con_id_repetido(self):
         with pytest.raises(ErrorDeDominio):
-            FaseDeGrupos("f1", "Grupos", 0, (Grupo("a", "A"), Grupo("a", "Otra")))
+            FaseDeGrupos("f1", "Grupos", 0, grupos=(Grupo("a", "A"), Grupo("a", "Otra")))
 
     def test_hereda_las_invariantes_de_fase(self):
         with pytest.raises(ErrorDeDominio):
             FaseDeGrupos("f1", "Grupos", -1)
 
     def test_grupo_por_id(self):
-        fase = FaseDeGrupos("f1", "Grupos", 0, (Grupo("a", "A"),))
+        fase = FaseDeGrupos("f1", "Grupos", 0, grupos=(Grupo("a", "A"),))
         assert fase.grupo("a").nombre == "A"
         assert fase.grupo("z") is None
 
     def test_grupo_de_un_participante(self):
         fase = FaseDeGrupos(
-            "f1", "Grupos", 0, (Grupo("a", "A", ("p1",)), Grupo("b", "B", ("p2",)))
+            "f1", "Grupos", 0, grupos=(Grupo("a", "A", ("p1",)), Grupo("b", "B", ("p2",)))
         )
         assert fase.grupo_de("p2").id == "b"
         assert fase.grupo_de("p9") is None
@@ -286,3 +290,26 @@ class TestReglasDeCompeticion:
     def test_rechaza_quedarse_sin_criterios_de_desempate(self):
         with pytest.raises(ErrorDeDominio):
             ReglasDeCompeticion(desempate=())
+
+
+class TestFormatoYCalendario:
+    """La competición conserva lo que la plantilla configuró: sin esto no
+    sabría cómo sortearse."""
+
+    def test_una_fase_trae_su_generador_y_su_configuracion(self):
+        fase = Fase(
+            "f1", "Liga", 0, config_fixture=ConfigFixture(jornadas_forzadas=7)
+        )
+        assert fase.fixture == "round_robin"
+        assert fase.config_fixture.jornadas_forzadas == 7
+
+    def test_por_defecto_es_round_robin_a_una_vuelta(self):
+        fase = Fase("f1", "Liga", 0)
+        assert fase.config_fixture == ConfigFixture()
+
+    def test_la_competicion_lleva_su_calendario(self):
+        sabados = Calendario(dia_de_la_semana=5, hora=dt.time(15, 0))
+        assert competicion(calendario=sabados).calendario.dia_de_la_semana == 5
+
+    def test_por_defecto_el_calendario_no_fija_dia(self):
+        assert competicion().calendario.dia_de_la_semana is None

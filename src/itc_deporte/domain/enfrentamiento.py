@@ -21,7 +21,7 @@ from enum import Enum
 from typing import Sequence
 
 from .errores import ErrorDeDominio
-from .identidades import EnfrentamientoId, ParticipanteId
+from .identidades import EnfrentamientoId, FaseId, ParticipanteId
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,24 +103,38 @@ class Enfrentamiento:
     """Entidad: la igualdad se define por `id`, como en `Participante`."""
 
     id: EnfrentamientoId
-    local: ParticipanteId
-    visitante: ParticipanteId
+    #: Una casilla de cuadro puede no saber todavía quién la ocupa.
+    local: ParticipanteId | None
+    visitante: ParticipanteId | None
+    fase_id: FaseId | None = None
     marcador: Marcador | None = None
     estado: EstadoEnfrentamiento = EstadoEnfrentamiento.PENDIENTE
     fecha: dt.datetime | None = None
+    #: Fase de grupos: `jornada`. Eliminatoria: `ronda` y `slot`.
     jornada: int | None = None
+    ronda: int | None = None
+    slot: int | None = None
 
     def __post_init__(self) -> None:
         if not self.id:
             raise ErrorDeDominio("Un enfrentamiento necesita un id.")
-        if self.local == self.visitante:
+        if self.local is not None and self.local == self.visitante:
             raise ErrorDeDominio(
                 f"Un participante no puede enfrentarse a sí mismo: {self.local!r}"
             )
-        if self.esta_finalizado and self.marcador is None:
-            raise ErrorDeDominio(
-                f"El enfrentamiento {self.id!r} está finalizado y no tiene marcador."
-            )
+        for campo, valor in (("jornada", self.jornada), ("ronda", self.ronda), ("slot", self.slot)):
+            minimo = 1 if campo == "jornada" else 0
+            if valor is not None and valor < minimo:
+                raise ErrorDeDominio(f"{campo} inválida: {valor}")
+        if self.esta_finalizado:
+            if self.marcador is None:
+                raise ErrorDeDominio(
+                    f"El enfrentamiento {self.id!r} está finalizado y no tiene marcador."
+                )
+            if self.local is None or self.visitante is None:
+                raise ErrorDeDominio(
+                    f"El enfrentamiento {self.id!r} está finalizado sin contendientes."
+                )
 
     def __eq__(self, otro: object) -> bool:
         if not isinstance(otro, Enfrentamiento):

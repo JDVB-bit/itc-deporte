@@ -194,3 +194,63 @@ class TestIdentidadIndexable:
     def test_los_enfrentamientos_se_pueden_usar_como_clave(self):
         indice = {enf(): "acta"}
         assert indice[enf(local="p7", visitante="p8")] == "acta"
+
+
+class TestUbicacion:
+    """Dónde vive el enfrentamiento: su fase y, en un cuadro, su casilla."""
+
+    def test_puede_no_estar_asignado_a_ninguna_fase(self):
+        assert enf().fase_id is None
+
+    def test_lleva_su_fase(self):
+        assert enf(fase_id="f1").fase_id == "f1"
+
+    def test_una_jornada_de_liga(self):
+        assert enf(fase_id="f1", jornada=3).jornada == 3
+
+    def test_una_casilla_de_cuadro(self):
+        casilla = enf(fase_id="f2", ronda=0, slot=2)
+        assert (casilla.ronda, casilla.slot) == (0, 2)
+
+    def test_las_jornadas_empiezan_en_uno(self):
+        with pytest.raises(ErrorDeDominio):
+            enf(jornada=0)
+
+    def test_las_rondas_empiezan_en_cero(self):
+        assert enf(ronda=0).ronda == 0
+        with pytest.raises(ErrorDeDominio):
+            enf(ronda=-1)
+
+    def test_rechaza_slot_negativo(self):
+        with pytest.raises(ErrorDeDominio):
+            enf(slot=-1)
+
+    def test_finalizar_conserva_la_ubicacion(self):
+        cerrado = enf(fase_id="f1", ronda=1, slot=0).finalizar(Marcador(1, 0))
+        assert (cerrado.fase_id, cerrado.ronda, cerrado.slot) == ("f1", 1, 0)
+
+
+class TestCasillasSinContendiente:
+    """Una casilla de cuadro existe antes de saberse quién la ocupa."""
+
+    def test_admite_una_casilla_vacia(self):
+        casilla = Enfrentamiento("e1", None, None, fase_id="f2", ronda=1, slot=0)
+        assert casilla.local is None and casilla.visitante is None
+
+    def test_admite_una_casilla_a_medias(self):
+        assert Enfrentamiento("e1", "p1", None, ronda=1).local == "p1"
+
+    def test_una_casilla_vacia_no_tiene_ganador(self):
+        assert Enfrentamiento("e1", None, None, ronda=1).ganador() is None
+
+    def test_sigue_rechazando_a_alguien_contra_si_mismo(self):
+        with pytest.raises(ErrorDeDominio):
+            Enfrentamiento("e1", "p1", "p1")
+
+    def test_no_se_puede_finalizar_una_casilla_sin_contendientes(self):
+        casilla = Enfrentamiento("e1", "p1", None, ronda=1)
+        with pytest.raises(ErrorDeDominio, match="sin contendientes"):
+            casilla.finalizar(Marcador(1, 0))
+
+    def test_nadie_participa_en_una_casilla_vacia(self):
+        assert not Enfrentamiento("e1", None, None, ronda=1).participa("p1")

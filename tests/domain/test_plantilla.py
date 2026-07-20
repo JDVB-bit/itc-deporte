@@ -13,8 +13,8 @@ from itc_deporte.domain.competicion import (
 from itc_deporte.domain.division import Division
 from itc_deporte.domain.enfrentamiento import Marcador
 from itc_deporte.domain.errores import ErrorDeDominio, ReglaInvalida
+from itc_deporte.domain.calendario import Calendario
 from itc_deporte.domain.plantilla import (
-    EspecificacionDeCalendario,
     EspecificacionDeFase,
     EspecificacionDeRegla,
     PlantillaDeCompeticion,
@@ -91,24 +91,24 @@ class TestEspecificacionDeFase:
 
 class TestCalendario:
     def test_sin_dia_fijo_arranca_en_la_fecha_dada(self):
-        cal = EspecificacionDeCalendario(hora=dt.time(9, 0))
+        cal = Calendario(hora=dt.time(9, 0))
         fechas = cal.fechas(dt.date(2026, 7, 20), 2)
         assert fechas[0] == dt.datetime(2026, 7, 20, 9, 0)
 
     def test_busca_el_siguiente_dia_de_la_semana(self):
         """20/07/2026 es lunes; el sábado siguiente es el 25."""
-        cal = EspecificacionDeCalendario(dia_de_la_semana=5)
+        cal = Calendario(dia_de_la_semana=5)
         assert cal.fechas(dt.date(2026, 7, 20), 1)[0].date() == dt.date(2026, 7, 25)
 
     def test_estando_en_el_dia_fijado_programa_para_el_siguiente(self):
         """Es lo que hacía el sorteo actual con su `or 7`."""
-        cal = EspecificacionDeCalendario(dia_de_la_semana=5)
+        cal = Calendario(dia_de_la_semana=5)
         sabado = dt.date(2026, 7, 25)
         assert cal.fechas(sabado, 1)[0].date() == dt.date(2026, 8, 1)
 
     def test_reproduce_el_calendario_del_itc(self):
         """Sábados a las 15:00, semanal."""
-        cal = EspecificacionDeCalendario(dia_de_la_semana=5, hora=dt.time(15, 0))
+        cal = Calendario(dia_de_la_semana=5, hora=dt.time(15, 0))
         fechas = cal.fechas(dt.date(2026, 7, 20), 3)
         assert fechas == (
             dt.datetime(2026, 7, 25, 15, 0),
@@ -117,24 +117,24 @@ class TestCalendario:
         )
 
     def test_la_cadencia_es_configurable(self):
-        cal = EspecificacionDeCalendario(cadencia_dias=3)
+        cal = Calendario(cadencia_dias=3)
         fechas = cal.fechas(dt.date(2026, 7, 20), 2)
         assert (fechas[1] - fechas[0]).days == 3
 
     def test_cero_fechas_es_vacio(self):
-        assert EspecificacionDeCalendario().fechas(dt.date(2026, 7, 20), 0) == ()
+        assert Calendario().fechas(dt.date(2026, 7, 20), 0) == ()
 
     def test_rechaza_un_dia_de_la_semana_fuera_de_rango(self):
         with pytest.raises(ErrorDeDominio):
-            EspecificacionDeCalendario(dia_de_la_semana=7)
+            Calendario(dia_de_la_semana=7)
 
     def test_rechaza_cadencia_de_cero_dias(self):
         with pytest.raises(ErrorDeDominio):
-            EspecificacionDeCalendario(cadencia_dias=0)
+            Calendario(cadencia_dias=0)
 
     def test_rechaza_una_cantidad_negativa(self):
         with pytest.raises(ErrorDeDominio):
-            EspecificacionDeCalendario().fechas(dt.date(2026, 7, 20), -1)
+            Calendario().fechas(dt.date(2026, 7, 20), -1)
 
 
 class TestPlantilla:
