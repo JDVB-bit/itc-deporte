@@ -1,3 +1,7 @@
 streamlit>=1.35.0
 supabase>=2.0.0
-bcrypt>=4.0.0
+
+# El código vive en `src/`, que no está en el path por sí solo. Streamlit Cloud
+# solo ejecuta `pip install -r requirements.txt`, así que el propio paquete se
+# instala desde aquí; sin esta línea `import itc_deporte` falla al arrancar.
+.

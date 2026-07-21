@@ -4,3 +4,11 @@
    secondaryBackgroundColor = "#141414"
    textColor = "#F5F0E8"
    font = "sans serif"
+
+[server]
+   # Streamlit recarga `app.py` al guardarlo, pero no los módulos que este
+   # importa: `src/itc_deporte/` se queda con la versión que hubiera en memoria
+   # al arrancar. Vigilar esa carpeta hace que un cambio en el dominio o en los
+   # servicios se refleje sin reiniciar el proceso a mano.
+   folderWatchList = ["src"]
+   runOnSave = true
