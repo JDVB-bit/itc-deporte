@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from ..aplicacion.permisos import Concesion, Identidad
+from ..aplicacion.permisos import Concesion, Identidad, Sesion
 from ..domain.identidades import CompeticionId
 
 
@@ -41,20 +41,34 @@ class ConcesionesEnMemoria:
 class AutenticadorEnMemoria:
     """Un directorio de identidades sin contraseñas: los tests no las necesitan."""
 
+    #: Marca lo que este autenticador emitió. Ver `identificar`.
+    _TOKEN = "sesion:"
+
     def __init__(self, identidades: Iterable[Identidad] = ()) -> None:
         self._por_id = {i.usuario_id: i for i in identidades}
 
-    def iniciar_sesion(self, email: str, contrasena: str) -> Identidad | None:
+    def iniciar_sesion(self, email: str, contrasena: str) -> Sesion | None:
         """Sin contraseñas: basta con que el correo exista.
 
         Los tests prueban permisos, no criptografía; comprobar una contraseña
         aquí solo añadiría ruido.
         """
-        return self.por_email(email.strip())
+        identidad = self.por_email(email.strip())
+        if identidad is None:
+            return None
+        return Sesion(identidad, token=self._TOKEN + identidad.usuario_id)
 
     def identificar(self, token: str) -> Identidad | None:
-        """El token es el propio id de usuario, que basta para probar permisos."""
-        return self._por_id.get(token)
+        """Solo reconoce tokens emitidos por `iniciar_sesion`.
+
+        El prefijo no es decorativo: sin él este doble aceptaba el id de usuario
+        como token, que es justo lo que el adaptador de Supabase rechaza. Un
+        doble más permisivo que lo que imita convierte a la suite en cómplice, y
+        eso fue exactamente lo que dejó pasar el fallo a producción.
+        """
+        if not token.startswith(self._TOKEN):
+            return None
+        return self._por_id.get(token[len(self._TOKEN) :])
 
     def por_email(self, email: str) -> Identidad | None:
         return next((i for i in self._por_id.values() if i.email == email), None)

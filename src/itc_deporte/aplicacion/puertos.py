@@ -25,7 +25,7 @@ from ..domain.identidades import (
     ParticipanteId,
 )
 from ..domain.participante import Participante
-from .permisos import Concesion, Identidad
+from .permisos import Concesion, Identidad, Sesion
 
 
 @runtime_checkable
@@ -90,12 +90,20 @@ class Autenticador(Protocol):
     el proveedor se encarga del resto.
     """
 
-    def iniciar_sesion(self, email: str, contrasena: str) -> Identidad | None:
-        """Identidad de quien acierta sus credenciales, o `None`."""
+    def iniciar_sesion(self, email: str, contrasena: str) -> Sesion | None:
+        """Sesión de quien acierta sus credenciales, o `None`.
+
+        Devuelve el token además de la identidad porque es lo único que
+        `identificar` acepta después. Quien implemente esto debe cumplir que
+        `identificar(iniciar_sesion(...).token)` devuelva la misma identidad.
+        """
         ...
 
     def identificar(self, token: str) -> Identidad | None:
-        """Identidad tras un token de sesión, o `None` si no vale."""
+        """Identidad tras un token de sesión, o `None` si no vale.
+
+        El token es el de `Sesion`, no el id de usuario.
+        """
         ...
 
     def por_email(self, email: str) -> Identidad | None: ...

@@ -65,10 +65,24 @@ class Servicios:
 #: Quién existe en la demostración, para poder probar el sistema desde cada
 #: papel sin dar de alta a nadie. En producción no hay atajo: el primer
 #: administrador se crea desde el panel de Supabase (ver `docs/FASE_7.md`).
+#: Cada papel se identifica por su **correo**, no por su id, para que probarlo
+#: pase por `iniciar_sesion` igual que en producción. Guardar el id a mano era
+#: un atajo que solo funcionaba con el doble en memoria, y así fue como el
+#: fallo del token llegó a producción sin que nadie lo viera.
 PAPELES_DE_DEMOSTRACION = (
-    ("demo-admin", "🛠️ Administrador", "Crea competiciones, sortea y reparte permisos."),
-    ("demo-registrador", "✍️ Registrador", "Inscribe y carga resultados, solo en Microfútbol."),
-    (None, "👤 Visitante", "Consulta tablas, calendarios y cuadros."),
+    (
+        "demo-admin",
+        "admin@itc.edu.co",
+        "🛠️ Administrador",
+        "Crea competiciones, sortea y reparte permisos.",
+    ),
+    (
+        "demo-registrador",
+        "profe@itc.edu.co",
+        "✍️ Registrador",
+        "Inscribe y carga resultados, solo en Microfútbol.",
+    ),
+    (None, None, "👤 Visitante", "Consulta tablas, calendarios y cuadros."),
 )
 
 

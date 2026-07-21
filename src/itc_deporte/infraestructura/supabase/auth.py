@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from ...aplicacion.permisos import Identidad
+from ...aplicacion.permisos import Identidad, Sesion
 
 
 class LimiteDeInvitaciones(RuntimeError):
@@ -52,11 +52,16 @@ class AutenticadorSupabase:
     def __init__(self, cliente: ClienteSupabase) -> None:
         self._cliente = cliente
 
-    def iniciar_sesion(self, email: str, contrasena: str) -> Identidad | None:
+    def iniciar_sesion(self, email: str, contrasena: str) -> Sesion | None:
         """Correo y contraseña contra Supabase Auth.
 
         Unas credenciales que no valen no son un error del sistema: son alguien
         que se equivocó al escribir.
+
+        Devuelve el `access_token` de la sesión, que es lo único que
+        `identificar` sabe leer. Antes solo devolvía la identidad y quien
+        llamaba guardaba el UUID; `get_user` lo rechazaba y el usuario quedaba
+        como anónimo desde la primera recarga.
         """
         try:
             respuesta = self._cliente.auth.sign_in_with_password(
@@ -64,7 +69,11 @@ class AutenticadorSupabase:
             )
         except Exception:
             return None
-        return _a_identidad(getattr(respuesta, "user", None))
+        identidad = _a_identidad(getattr(respuesta, "user", None))
+        token = getattr(getattr(respuesta, "session", None), "access_token", None)
+        if identidad is None or not token:
+            return None
+        return Sesion(identidad, token=token)
 
     def identificar(self, token: str) -> Identidad | None:
         """Identidad tras un JWT de sesión, o `None` si no vale."""
