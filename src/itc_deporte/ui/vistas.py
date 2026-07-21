@@ -9,12 +9,21 @@ sistema anterior confundía las dos cosas.
 from __future__ import annotations
 
 import datetime as dt
+import unicodedata
 
 import streamlit as st
 
 from ..aplicacion.errores import ErrorDeAplicacion
 from ..aplicacion.permisos import Accion, Identidad
-from ..domain.competicion import FaseDeGrupos, FaseEliminatoria
+from ..domain.calendario import Calendario
+from ..domain.competicion import (
+    Competicion,
+    Deporte,
+    EstadoCompeticion,
+    FaseDeGrupos,
+    FaseEliminatoria,
+)
+from ..domain.reglas.fixture import ConfigFixture
 from ..domain.enfrentamiento import Marcador
 from ..domain.errores import ErrorDeDominio
 from ..domain.motor.bracket import nombre_de_ronda
@@ -51,16 +60,7 @@ def _ejecutar(accion, *args, exito: str = "Hecho.", **kwargs) -> bool:
 # ── Consulta ────────────────────────────────────────────────────────────────
 
 
-def tabla_de_posiciones(servicios, competicion, fase) -> None:
-    filas = servicios.clasificacion.de_fase(competicion.id, fase.id)
-    if not filas:
-        st.info("Todavía no hay participantes inscritos.")
-        return
-
-    nombres = {
-        p.id: p.nombre
-        for p in servicios.inscripciones.inscritos(competicion.id)
-    }
+def _pintar_clasificacion(filas, nombres) -> None:
     st.dataframe(
         [
             {
@@ -80,6 +80,38 @@ def tabla_de_posiciones(servicios, competicion, fase) -> None:
         hide_index=True,
         width="stretch",
     )
+
+
+def tabla_de_posiciones(servicios, competicion, fase) -> None:
+    """Una tabla por grupo cuando los hay; si no, una sola de toda la fase.
+
+    Con grupos, una única tabla mezcla equipos que no se han enfrentado y
+    ordena por puntos a quienes juegan torneos distintos. `de_grupo` existía
+    para esto y no lo llamaba nadie.
+    """
+    nombres = {
+        p.id: p.nombre
+        for p in servicios.inscripciones.inscritos(competicion.id)
+    }
+    grupos = getattr(fase, "grupos", ())
+
+    if grupos:
+        for grupo in grupos:
+            tema.seccion(grupo.nombre or grupo.id)
+            filas = servicios.clasificacion.de_grupo(
+                competicion.id, fase.id, grupo.id
+            )
+            if filas:
+                _pintar_clasificacion(filas, nombres)
+            else:
+                st.caption("Este grupo todavía no tiene participantes.")
+        return
+
+    filas = servicios.clasificacion.de_fase(competicion.id, fase.id)
+    if not filas:
+        st.info("Todavía no hay participantes inscritos.")
+        return
+    _pintar_clasificacion(filas, nombres)
 
 
 def calendario(servicios, competicion, fase, actor: Identidad) -> None:
@@ -259,6 +291,29 @@ def _casilla_del_cuadro(
                     st.rerun()
 
 
+def _retirar(servicios, inscritos, actor: Identidad) -> None:
+    """Dar de baja a un inscrito.
+
+    Se pedía confirmación explícita porque `retirar` borra al participante, y
+    con él su rastro en los enfrentamientos ya sorteados.
+    """
+    with st.expander("Retirar un participante"):
+        por_nombre = {p.nombre: p for p in inscritos}
+        elegido = st.selectbox("Participante", list(por_nombre), key="retirar-quien")
+        st.caption(
+            "Retirarlo lo borra de la competición. Si ya se sorteó, sus "
+            "partidos quedan sin uno de los lados."
+        )
+        if st.button("Retirar", key="retirar-confirmar"):
+            if _ejecutar(
+                servicios.inscripciones.retirar,
+                actor,
+                por_nombre[elegido].id,
+                exito=f"{elegido} retirado.",
+            ):
+                st.rerun()
+
+
 def participantes(servicios, competicion, actor: Identidad) -> None:
     """Lista e inscripción.
 
@@ -306,6 +361,8 @@ def participantes(servicios, competicion, actor: Identidad) -> None:
                 hide_index=True,
                 width="stretch",
             )
+            if puede:
+                _retirar(servicios, inscritos, actor)
         else:
             st.info(
                 "Todavía no hay participantes inscritos."
@@ -314,6 +371,154 @@ def participantes(servicios, competicion, actor: Identidad) -> None:
 
 
 # ── Administración ──────────────────────────────────────────────────────────
+
+
+def _identificador(nombre: str, temporada: str) -> str:
+    """Un id legible a partir del nombre. No hay pantalla que lo pida.
+
+    Pedirle un identificador a quien crea una competición es trasladarle un
+    detalle de la base. Se deriva, y si choca con otro el servicio lo dirá.
+    """
+    crudo = f"{nombre}-{temporada}".lower()
+    limpio = "".join(c if c.isalnum() else "-" for c in unicodedata.normalize("NFKD", crudo)
+                     .encode("ascii", "ignore").decode())
+    return "-".join(p for p in limpio.split("-") if p) or "competicion"
+
+
+def nueva_competicion(servicios, actor: Identidad) -> None:
+    """Crear una competición: el camino que no existía.
+
+    `ServicioDeCompeticiones.crear` llevaba desde su commit sin que nada lo
+    invocara. En la demostración no se notaba porque las competiciones venían
+    sembradas, así que sobre una base vacía —producción recién montada— un
+    administrador se quedaba sin salida.
+
+    Las fases se piden aquí porque `crear` recibe la competición entera y no
+    hay operación para añadirlas después.
+    """
+    if not servicios.politica.puede(actor, Accion.CREAR_COMPETICION):
+        return
+
+    tema.seccion("Nueva competición")
+    deportes = {c.deporte.id: c.deporte for c in servicios.competiciones.listar()}
+    with st.form("nueva-competicion"):
+        nombre = st.text_input("Nombre", placeholder="Intercursos — Microfútbol")
+        temporada = st.text_input("Temporada", value=str(dt.date.today().year))
+
+        if deportes:
+            opciones = [*deportes.values(), None]
+            deporte = st.selectbox(
+                "Deporte",
+                opciones,
+                format_func=lambda d: f"{d.icono} {d.nombre}" if d else "➕ Otro…",
+            )
+        else:
+            deporte = None
+        if deporte is None:
+            columnas = st.columns([3, 1])
+            deporte_nombre = columnas[0].text_input("Deporte", placeholder="Microfútbol")
+            deporte_icono = columnas[1].text_input("Icono", value="🏅", max_chars=2)
+
+        st.caption("Fases. Una competición sin fases se crea igual, pero no se puede sortear.")
+        hay_grupos = st.checkbox("Fase de grupos", value=True)
+        jornadas = st.number_input(
+            "Jornadas (0 = todas las que salgan)", min_value=0, max_value=99, value=0
+        )
+        hay_eliminatoria = st.checkbox("Fase eliminatoria", value=True)
+        cupos = st.number_input("Cupos al cuadro", min_value=2, max_value=64, value=8)
+
+        columnas = st.columns(2)
+        dia = columnas[0].selectbox(
+            "Día de juego",
+            range(7),
+            index=5,
+            format_func=lambda d: (
+                "lunes martes miércoles jueves viernes sábado domingo".split()[d]
+            ),
+        )
+        hora = columnas[1].time_input("Hora", value=dt.time(15, 0))
+
+        if not st.form_submit_button("Crear competición"):
+            return
+        if not nombre.strip():
+            st.warning("La competición necesita un nombre.")
+            return
+        if deporte is None:
+            if not deporte_nombre.strip():
+                st.warning("Elige un deporte o escribe uno nuevo.")
+                return
+            deporte = Deporte(
+                _identificador(deporte_nombre, ""), deporte_nombre.strip(), deporte_icono
+            )
+
+        id_ = _identificador(nombre, temporada)
+        fases = []
+        if hay_grupos:
+            fases.append(
+                FaseDeGrupos(
+                    f"{id_}:0",
+                    "Fase de grupos",
+                    0,
+                    config_fixture=ConfigFixture(
+                        jornadas_forzadas=int(jornadas) or None
+                    ),
+                )
+            )
+        if hay_eliminatoria:
+            fases.append(
+                FaseEliminatoria(
+                    f"{id_}:{len(fases)}",
+                    "Eliminación directa",
+                    len(fases),
+                    fixture="eliminacion_directa",
+                    cupos=int(cupos),
+                )
+            )
+        _ejecutar(
+            servicios.competiciones.crear,
+            actor,
+            Competicion(
+                id=id_,
+                nombre=nombre.strip(),
+                deporte=deporte,
+                temporada=temporada.strip() or None,
+                fases=tuple(fases),
+                calendario=Calendario(dia_de_la_semana=int(dia), hora=hora),
+            ),
+            exito=f"Competición {nombre.strip()!r} creada.",
+        )
+
+
+def estado_de_competicion(servicios, competicion, actor: Identidad) -> None:
+    """Mover la competición entre Borrador, En curso y Finalizada.
+
+    `cambiar_estado` era el segundo servicio sin quien lo llamara: una
+    competición nacía en Borrador y ahí se quedaba para siempre.
+    """
+    if not servicios.politica.puede(
+        actor, Accion.ADMINISTRAR_COMPETICION, competicion.id
+    ):
+        return
+
+    tema.seccion("Estado")
+    estados = list(EstadoCompeticion)
+    elegido = st.selectbox(
+        "Estado de la competición",
+        estados,
+        index=estados.index(competicion.estado),
+        format_func=lambda e: e.value,
+    )
+    if elegido is competicion.estado:
+        return
+    if st.button(f"Pasar a {elegido.value}"):
+        if _ejecutar(
+            servicios.competiciones.cambiar_estado,
+            actor,
+            competicion.id,
+            elegido,
+            exito=f"La competición pasó a {elegido.value}.",
+        ):
+            st.rerun()
 
 
 def sorteo(servicios, competicion, fase, actor: Identidad) -> None:

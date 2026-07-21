@@ -149,6 +149,10 @@ def main() -> None:
 
     if competicion is None:
         st.info("Todavía no hay ninguna competición.")
+        # El formulario va aquí y no solo en la pestaña de administrar: esa
+        # pestaña vive dentro de una competición, así que sobre una base vacía
+        # un administrador no tenía por dónde empezar.
+        vistas.nueva_competicion(SERVICIOS, yo)
         return
 
     st.markdown(f"## {competicion.deporte.icono} {competicion.nombre}")
@@ -184,7 +188,9 @@ def main() -> None:
         with abiertas[4]:
             if grupos:
                 vistas.sorteo(SERVICIOS, competicion, grupos, yo)
+            vistas.estado_de_competicion(SERVICIOS, competicion, yo)
             vistas.panel_de_registradores(SERVICIOS, competicion, yo)
+            vistas.nueva_competicion(SERVICIOS, yo)
 
 
 main()
