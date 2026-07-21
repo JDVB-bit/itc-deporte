@@ -171,10 +171,24 @@ class TestConcesionesEnMemoria:
 class TestAutenticadorEnMemoria:
     def test_identificar(self):
         auth = AutenticadorEnMemoria([ADMIN])
-        assert auth.identificar("admin") == ADMIN
+        sesion = auth.iniciar_sesion(ADMIN.email, "")
+        assert auth.identificar(sesion.token) == ADMIN
 
     def test_un_token_desconocido_no_identifica(self):
         assert AutenticadorEnMemoria().identificar("fantasma") is None
+
+    def test_el_id_de_usuario_no_sirve_como_token(self):
+        """La regresión del fallo que llegó a producción.
+
+        Este doble aceptaba el UUID como token; el adaptador de Supabase no.
+        Mientras el doble fue más permisivo, la interfaz guardaba el id, todos
+        los tests pasaban y en producción nadie llegaba a ser administrador.
+        """
+        auth = AutenticadorEnMemoria([ADMIN])
+        assert auth.identificar(ADMIN.usuario_id) is None
+
+    def test_sin_credenciales_no_hay_sesion(self):
+        assert AutenticadorEnMemoria().iniciar_sesion("nadie@itc.edu.co", "") is None
 
     def test_buscar_por_correo(self):
         auth = AutenticadorEnMemoria([PROFE])

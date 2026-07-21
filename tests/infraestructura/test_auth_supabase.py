@@ -32,6 +32,17 @@ class RespuestaFalsa:
     user: UsuarioFalso | None
 
 
+@dataclass
+class SesionFalsa:
+    access_token: str
+
+
+@dataclass
+class RespuestaDeAcceso:
+    user: UsuarioFalso | None
+    session: SesionFalsa | None
+
+
 class AdminFalso:
     def __init__(self, usuarios, como_lista=True):
         self.usuarios = list(usuarios)
@@ -55,6 +66,13 @@ class AdminFalso:
 
 
 class AuthFalso:
+    """Imita a Supabase en lo que importa: `get_user` **solo** acepta el JWT.
+
+    Que rechace cualquier otra cosa —un UUID, por ejemplo— no es un capricho
+    del doble: es lo que hace el proveedor, y era justo lo que este doble no
+    reproducía cuando el fallo del token pasó a producción.
+    """
+
     def __init__(self, usuarios=(), como_lista=True, token_valido="jwt-bueno"):
         self.admin = AdminFalso(usuarios, como_lista)
         self._token_valido = token_valido
@@ -63,6 +81,14 @@ class AuthFalso:
         if token != self._token_valido:
             raise ValueError("token inválido")
         return RespuestaFalsa(user=self.admin.usuarios[0])
+
+    def sign_in_with_password(self, credenciales):
+        usuario = next(
+            (u for u in self.admin.usuarios if u.email == credenciales["email"]), None
+        )
+        if usuario is None or credenciales["password"] != "correcta":
+            raise ValueError("credenciales inválidas")
+        return RespuestaDeAcceso(user=usuario, session=SesionFalsa(self._token_valido))
 
 
 class ClienteFalso:
@@ -115,6 +141,47 @@ class TestIdentificar:
             )()
 
         assert AutenticadorSupabase(SinId()).identificar("x") is None
+
+
+class TestIniciarSesion:
+    def test_devuelve_identidad_y_token(self, autenticador):
+        sesion = autenticador.iniciar_sesion("ana@itc.edu.co", "correcta")
+        assert sesion.identidad == Identidad("uuid-ana", "ana@itc.edu.co")
+        assert sesion.token == "jwt-bueno"
+
+    def test_el_token_sirve_para_identificar(self, autenticador):
+        """La ida y vuelta: es lo que la interfaz hace en cada recarga.
+
+        Sin esta comprobación el adaptador podía devolver un token que
+        `identificar` no aceptaba, que es exactamente lo que pasó: la interfaz
+        guardaba el UUID, `get_user` lo rechazaba y el usuario quedaba anónimo.
+        """
+        sesion = autenticador.iniciar_sesion("ana@itc.edu.co", "correcta")
+        assert autenticador.identificar(sesion.token) == sesion.identidad
+
+    def test_el_id_de_usuario_no_vale_como_token(self, autenticador):
+        """Lo que se guardaba antes, y por qué nadie llegaba a administrador."""
+        sesion = autenticador.iniciar_sesion("ana@itc.edu.co", "correcta")
+        assert autenticador.identificar(sesion.identidad.usuario_id) is None
+
+    def test_credenciales_erroneas_no_revientan(self, autenticador):
+        assert autenticador.iniciar_sesion("ana@itc.edu.co", "mala") is None
+
+    def test_sin_sesion_en_la_respuesta_no_hay_acceso(self):
+        """Un acceso sin token no es un acceso: no habría con qué volver."""
+
+        class SinSesion:
+            auth = type(
+                "A",
+                (),
+                {
+                    "sign_in_with_password": staticmethod(
+                        lambda c: RespuestaDeAcceso(user=ANA, session=None)
+                    )
+                },
+            )()
+
+        assert AutenticadorSupabase(SinSesion()).iniciar_sesion("a@b.co", "x") is None
 
 
 class TestBuscarPorCorreo:
@@ -213,3 +280,21 @@ class TestContraSupabaseReal:
 
     def test_un_token_vacio_tampoco(self, autenticador):
         assert autenticador.identificar("") is None
+
+    def test_la_ida_y_vuelta_completa(self, autenticador, ya_registrado):
+        """Entrar y seguir siendo quien entró, contra Supabase de verdad.
+
+        Este es el test que faltaba. Todo lo demás de este archivo corre contra
+        un doble que yo escribí, así que solo comprueba lo que supuse. Esto
+        comprueba lo que Supabase hace.
+        """
+        sesion = autenticador.iniciar_sesion(self.CORREO, "contrato-1234")
+        assert sesion is not None
+        assert sesion.identidad.usuario_id == ya_registrado.usuario_id
+        assert autenticador.identificar(sesion.token) == sesion.identidad
+
+    def test_el_uuid_no_sirve_como_token_contra_supabase(
+        self, autenticador, ya_registrado
+    ):
+        """La forma exacta del fallo que tumbó el panel de administrador."""
+        assert autenticador.identificar(ya_registrado.usuario_id) is None

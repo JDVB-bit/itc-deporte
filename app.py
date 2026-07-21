@@ -23,7 +23,7 @@ st.set_page_config(
     layout="wide",
 )
 
-for clave, valor in [("tema", "oscuro"), ("usuario_id", None)]:
+for clave, valor in [("tema", "oscuro"), ("token", None)]:
     st.session_state.setdefault(clave, valor)
 
 
@@ -50,9 +50,15 @@ except BaseSinPreparar as error:
 
 
 def actor() -> Identidad:
-    if not st.session_state.usuario_id:
+    """Quién está mirando, según el token de sesión.
+
+    Lo que se guarda es el token, no el id de usuario: es lo único que
+    `identificar` acepta. Guardar el id hacía que Supabase no reconociera a
+    nadie y todo el mundo navegara como visitante.
+    """
+    if not st.session_state.token:
         return ANONIMO
-    identidad = SERVICIOS.autenticador.identificar(st.session_state.usuario_id)
+    identidad = SERVICIOS.autenticador.identificar(st.session_state.token)
     return identidad or ANONIMO
 
 
@@ -69,7 +75,7 @@ def _selector_de_papel(yo: Identidad) -> None:
         icon="⚠️",
     )
     st.caption("Pruébalo desde cada papel:")
-    for usuario_id, etiqueta, explicacion in PAPELES_DE_DEMOSTRACION:
+    for usuario_id, correo, etiqueta, explicacion in PAPELES_DE_DEMOSTRACION:
         soy_yo = (yo.usuario_id if yo is not ANONIMO else None) == usuario_id
         if st.button(
             f"{'● ' if soy_yo else ''}{etiqueta}",
@@ -78,7 +84,12 @@ def _selector_de_papel(yo: Identidad) -> None:
             disabled=soy_yo,
             help=explicacion,
         ):
-            st.session_state.usuario_id = usuario_id
+            # Por el mismo camino que producción: el papel se toma iniciando
+            # sesión, no escribiendo a mano en el estado.
+            sesion = (
+                SERVICIOS.autenticador.iniciar_sesion(correo, "") if correo else None
+            )
+            st.session_state.token = sesion.token if sesion else None
             st.rerun()
 
 
@@ -102,11 +113,11 @@ def barra_lateral(yo: Identidad):
                     correo = st.text_input("Correo")
                     contrasena = st.text_input("Contraseña", type="password")
                     if st.form_submit_button("Entrar") and correo:
-                        identidad = SERVICIOS.autenticador.iniciar_sesion(
+                        sesion = SERVICIOS.autenticador.iniciar_sesion(
                             correo, contrasena
                         )
-                        if identidad:
-                            st.session_state.usuario_id = identidad.usuario_id
+                        if sesion:
+                            st.session_state.token = sesion.token
                             st.rerun()
                         else:
                             st.error("Correo o contraseña incorrectos.")
@@ -115,7 +126,7 @@ def barra_lateral(yo: Identidad):
             roles = SERVICIOS.politica.roles_de(yo)
             st.caption("Administrador" if Rol.ADMIN in roles else "Registrador")
             if st.button("Cerrar sesión"):
-                st.session_state.usuario_id = None
+                st.session_state.token = None
                 st.rerun()
 
         st.markdown("---")

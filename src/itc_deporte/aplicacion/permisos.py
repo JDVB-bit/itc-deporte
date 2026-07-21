@@ -73,6 +73,27 @@ ANONIMO = Identidad(usuario_id="anonimo")
 
 
 @dataclass(frozen=True, slots=True)
+class Sesion:
+    """Quién entró y con qué se le vuelve a reconocer.
+
+    El token existe como campo aparte porque **no es** el id de usuario. Con
+    Supabase es un JWT, y pasarle un UUID a `identificar` devuelve `None`: la
+    sesión se acepta y en la recarga siguiente el usuario aparece como anónimo.
+    Es el fallo que se coló en producción, y venía de que el doble en memoria
+    sí aceptaba el id como token, así que la suite entera lo daba por bueno.
+
+    Devolver los dos juntos obliga a quien inicia sesión a guardar el que sirve.
+    """
+
+    identidad: Identidad
+    token: str
+
+    def __post_init__(self) -> None:
+        if not self.token:
+            raise ErrorDeAplicacion("Una sesión necesita un token.")
+
+
+@dataclass(frozen=True, slots=True)
 class Concesion:
     """`competicion_id` en `None` significa alcance global."""
 
