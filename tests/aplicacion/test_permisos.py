@@ -94,6 +94,25 @@ class TestRolesEfectivos:
     def test_sin_ambito_el_registrador_no_cuenta(self, politica):
         assert politica.roles_de(PROFE) == frozenset({Rol.VISITANTE})
 
+    def test_al_anonimo_no_se_le_consulta_el_repositorio(self):
+        """La regresión del fallo que tumbó producción.
+
+        `ANONIMO` no lleva un id de usuario de verdad. Preguntar por él a la
+        base reventaba: `concesiones.usuario_id` es `uuid` y Postgres rechaza
+        `'anonimo'`. Solo se llegaba a este camino con la base vacía, que es
+        justo el estado de un despliegue recién montado.
+        """
+
+        class RepositorioQueProtesta:
+            def de_usuario(self, usuario_id):
+                raise AssertionError(
+                    f"no se debe preguntar por {usuario_id!r}: no es un usuario"
+                )
+
+        assert Politica(RepositorioQueProtesta()).roles_de(ANONIMO) == frozenset(
+            {Rol.VISITANTE}
+        )
+
 
 class TestQuienPuedeQue:
     @pytest.mark.parametrize("accion", list(Accion))

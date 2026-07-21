@@ -131,7 +131,16 @@ class Politica:
     def roles_de(
         self, identidad: Identidad, competicion_id: CompeticionId | None = None
     ) -> frozenset[Rol]:
-        """Roles efectivos de la identidad en el ámbito indicado."""
+        """Roles efectivos de la identidad en el ámbito indicado.
+
+        A quien no se ha identificado no se le preguntan sus concesiones: no
+        puede tener ninguna, y `ANONIMO` no lleva un id de usuario de verdad.
+        Preguntarlo tumbó la aplicación en producción —`usuario_id` es `uuid`
+        en la base y Postgres rechaza `'anonimo'`—, y el fallo solo aparecía
+        con la base vacía, que es cuando un visitante llega a este camino.
+        """
+        if identidad is ANONIMO:
+            return frozenset({Rol.VISITANTE})
         otorgados = {
             concesion.rol
             for concesion in self._concesiones.de_usuario(identidad.usuario_id)

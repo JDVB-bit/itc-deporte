@@ -174,3 +174,13 @@ class TestConcesionesSupabase(ContratoDeConcesiones):
         )
 
         return ConcesionesSupabase(cliente)
+
+    def test_un_id_que_no_es_uuid_no_revienta(self, repositorio):
+        """La regresión del fallo que tumbó producción.
+
+        `usuario_id` es de tipo `uuid`. Preguntar por `'anonimo'` no devolvía
+        cero filas: devolvía un error de PostgREST que subía hasta la interfaz
+        y dejaba la aplicación en pantalla de error. Quien no existe no tiene
+        concesiones, y esa es la respuesta correcta.
+        """
+        assert repositorio.de_usuario("anonimo") == ()

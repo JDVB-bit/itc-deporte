@@ -107,6 +107,17 @@ class TestCrearLaPrimeraCompeticion:
         app = _abrir(como=MIRON)
         assert not any("Crear competici" in b.label for b in app.button)
 
+    def test_un_visitante_sin_identificar_no_rompe_la_pagina(self, base_vacia):
+        """Base vacía y nadie identificado: lo que se encontró producción.
+
+        Este camino preguntaba las concesiones de `ANONIMO`, cuyo id no es un
+        UUID, y contra Supabase eso era un error de PostgREST en pantalla.
+        """
+        app = _abrir()
+        assert not app.exception
+        assert any("no hay ninguna competición" in i.value for i in app.info)
+        assert not any("Crear competici" in b.label for b in app.button)
+
 
 class TestEstadoDeLaCompeticion:
     def test_se_puede_ponerla_en_curso(self, base_vacia):

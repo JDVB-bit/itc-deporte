@@ -18,6 +18,7 @@ de que el puerto admita el lote.
 
 from __future__ import annotations
 
+import uuid as _uuid
 from typing import Any, Sequence
 
 from ...domain.competicion import Competicion, Deporte
@@ -237,6 +238,15 @@ class EnfrentamientosSupabase(_Base):
 
 class ConcesionesSupabase(_Base):
     def de_usuario(self, usuario_id: str) -> tuple[Concesion, ...]:
+        """Concesiones de un usuario. Sin concesiones si el id no es un UUID.
+
+        `concesiones.usuario_id` es de tipo `uuid`: preguntar por un id que no
+        lo sea no devuelve cero filas, sino un error de PostgREST que sube por
+        toda la pila. Quien no existe no tiene concesiones, y esa es la
+        respuesta correcta —no una excepción.
+        """
+        if not _es_uuid(usuario_id):
+            return ()
         filas = self._filas(
             self._db.table("concesiones").select("*").eq("usuario_id", usuario_id).execute()
         )
@@ -270,6 +280,14 @@ class ConcesionesSupabase(_Base):
         else:
             consulta = consulta.eq("competicion_id", competicion_id)
         consulta.execute()
+
+
+def _es_uuid(valor: str) -> bool:
+    try:
+        _uuid.UUID(str(valor))
+    except (ValueError, AttributeError, TypeError):
+        return False
+    return True
 
 
 def _concesion_desde_fila(fila: dict) -> Concesion:
