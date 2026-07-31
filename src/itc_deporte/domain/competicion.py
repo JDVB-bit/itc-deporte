@@ -115,7 +115,12 @@ class FaseDeGrupos(Fase):
     grupos: tuple[Grupo, ...] = ()
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        # `super()` sin argumentos no vale aquí: `@dataclass(slots=True)`
+        # reconstruye la clase para añadir `__slots__`, y esa reconstrucción
+        # deja obsoleta la celda `__class__` que el `super()` implícito
+        # necesita. Con Python 3.12+ esto revienta con
+        # `TypeError: super(type, obj): obj must be an instance or subtype of type`.
+        Fase.__post_init__(self)
         ids = [g.id for g in self.grupos]
         if len(ids) != len(set(ids)):
             raise ErrorDeDominio(f"Grupos con id repetido en la fase {self.id!r}.")
@@ -149,7 +154,9 @@ class FaseEliminatoria(Fase):
     cupos: int = 2
 
     def __post_init__(self) -> None:
-        super().__post_init__()
+        # Mismo motivo que en `FaseDeGrupos.__post_init__`: `super()` sin
+        # argumentos no sobrevive a `@dataclass(slots=True)` con herencia.
+        Fase.__post_init__(self)
         if self.cupos < 2:
             raise ErrorDeDominio(
                 f"Una eliminatoria necesita al menos 2 cupos, no {self.cupos}."
