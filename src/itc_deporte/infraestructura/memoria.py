@@ -88,3 +88,20 @@ class EnfrentamientosEnMemoria:
     def eliminar_de_fase(self, fase_id: FaseId) -> None:
         self._por_fase.pop(fase_id, None)
 
+from ..domain.division import Division
+from ..domain.identidades import DivisionId
+
+class DivisionesEnMemoria:
+    def __init__(self) -> None:
+        self._por_clave: dict[tuple[CompeticionId, DivisionId], Division] = {}
+
+    def obtener(self, competicion_id, division_id):
+        return self._por_clave.get((competicion_id, division_id))
+
+    def de_competicion(self, competicion_id):
+        return tuple(
+            d for (c, _), d in self._por_clave.items() if c == competicion_id
+        )
+
+    def guardar(self, competicion_id, division):
+        self._por_clave[(competicion_id, division.id)] = division
