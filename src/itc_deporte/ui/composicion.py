@@ -103,14 +103,16 @@ def construir(secretos: Any = None) -> Servicios:
     else:
         repositorios, autenticador, demostracion = _en_memoria()
 
-    competiciones, participantes, enfrentamientos, concesiones = repositorios
+    competiciones, participantes, enfrentamientos, concesiones, divisiones = repositorios
     politica = Politica(concesiones)
     clasificacion = ServicioDeClasificacion(
         competiciones, participantes, enfrentamientos
     )
     return Servicios(
         competiciones=ServicioDeCompeticiones(competiciones, politica),
-        inscripciones=ServicioDeInscripciones(competiciones, participantes, politica),
+        inscripciones=ServicioDeInscripciones(
+            competiciones, participantes, politica, divisiones=divisiones
+        ),
         sorteo=ServicioDeSorteo(
             competiciones, participantes, enfrentamientos, politica
         ),
@@ -165,6 +167,7 @@ def _sobre_supabase(url: str, clave: str):
     from ..infraestructura.supabase.repositorios import (
         CompeticionesSupabase,
         ConcesionesSupabase,
+        DivisionesSupabase,
         EnfrentamientosSupabase,
         ParticipantesSupabase,
     )
@@ -175,6 +178,7 @@ def _sobre_supabase(url: str, clave: str):
         ParticipantesSupabase(cliente),
         EnfrentamientosSupabase(cliente),
         ConcesionesSupabase(cliente),
+        DivisionesSupabase(cliente),
     )
     return repositorios, AutenticadorSupabase(cliente), False
 
@@ -187,6 +191,7 @@ def _en_memoria():
     )
     from ..infraestructura.memoria import (
         CompeticionesEnMemoria,
+        DivisionesEnMemoria,
         EnfrentamientosEnMemoria,
         ParticipantesEnMemoria,
     )
@@ -205,6 +210,7 @@ def _en_memoria():
                 Concesion("demo-registrador", Rol.REGISTRADOR, "demo-micro"),
             ]
         ),
+        DivisionesEnMemoria(),
     )
     autenticador = AutenticadorEnMemoria([admin, registrador])
     _sembrar(repositorios, admin)
@@ -213,11 +219,13 @@ def _en_memoria():
 
 def _sembrar(repositorios, admin: Identidad) -> None:
     """Deja una competición sorteada y a medio jugar, para que se vea algo."""
-    competiciones, participantes, enfrentamientos, concesiones = repositorios
+    competiciones, participantes, enfrentamientos, concesiones, divisiones = repositorios
     politica = Politica(concesiones)
 
     servicio = ServicioDeCompeticiones(competiciones, politica)
-    inscripciones = ServicioDeInscripciones(competiciones, participantes, politica)
+    inscripciones = ServicioDeInscripciones(
+        competiciones, participantes, politica, divisiones=divisiones
+    )
     sorteo = ServicioDeSorteo(
         competiciones, participantes, enfrentamientos, politica, azar=random.Random(7)
     )

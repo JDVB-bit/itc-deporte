@@ -22,6 +22,7 @@ import uuid as _uuid
 from typing import Any, Sequence
 
 from ...domain.competicion import Competicion, Deporte
+from ...domain.division import Division
 from ...domain.enfrentamiento import Enfrentamiento
 from ...domain.identidades import (
     CompeticionId,
@@ -150,6 +151,39 @@ class ParticipantesSupabase(_Base):
             .in_("participante_id", list(participantes))
             .execute()
         )
+
+
+class DivisionesSupabase(_Base):
+    """Existe porque `participantes.division_id` referencia esta tabla por FK:
+    guardar un participante con una división que no está aquí todavía revienta
+    contra Supabase. `ServicioDeInscripciones` la usa para asegurarla antes."""
+
+    def obtener(
+        self, competicion_id: CompeticionId, division_id: str
+    ) -> Division | None:
+        fila = self._una(
+            self._db.table("divisiones")
+            .select("*")
+            .eq("competicion_id", competicion_id)
+            .eq("id", division_id)
+            .execute()
+        )
+        return m.division_desde_fila(fila) if fila else None
+
+    def de_competicion(self, competicion_id: CompeticionId) -> tuple[Division, ...]:
+        filas = self._filas(
+            self._db.table("divisiones")
+            .select("*")
+            .eq("competicion_id", competicion_id)
+            .execute()
+        )
+        return tuple(m.division_desde_fila(f) for f in filas)
+
+    def guardar(self, competicion_id: CompeticionId, division: Division) -> None:
+        self._db.table("divisiones").upsert(
+            m.division_a_fila(division, competicion_id),
+            on_conflict="competicion_id,id",
+        ).execute()
 
 
 class EnfrentamientosSupabase(_Base):

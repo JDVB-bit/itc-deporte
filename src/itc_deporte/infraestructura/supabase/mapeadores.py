@@ -25,6 +25,7 @@ from ...domain.competicion import (
     FaseEliminatoria,
     ReglasDeCompeticion,
 )
+from ...domain.division import Division
 from ...domain.enfrentamiento import (
     Enfrentamiento,
     EstadoEnfrentamiento,
@@ -167,6 +168,24 @@ def deporte_a_fila(deporte: Deporte) -> dict[str, Any]:
 
 def deporte_desde_fila(fila: Mapping[str, Any]) -> Deporte:
     return Deporte(fila["id"], fila["nombre"], fila.get("icono") or "")
+
+
+# ── Divisiones ──────────────────────────────────────────────────────────────
+
+
+def division_a_fila(division: Division, competicion_id: str) -> dict[str, Any]:
+    return {
+        "id": division.id,
+        "competicion_id": competicion_id,
+        "nombre": division.nombre,
+        "padre_id": division.padre_id,
+    }
+
+
+def division_desde_fila(fila: Mapping[str, Any]) -> Division:
+    return Division(
+        id=fila["id"], nombre=fila["nombre"], padre_id=fila.get("padre_id")
+    )
 
 
 # ── Participantes ───────────────────────────────────────────────────────────

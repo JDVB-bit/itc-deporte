@@ -8,11 +8,16 @@ función por otro camino se saltaba la validación.
 from __future__ import annotations
 
 from ...domain.competicion import EstadoCompeticion
+from ...domain.division import Division
 from ...domain.identidades import CompeticionId, DivisionId, ParticipanteId
 from ...domain.participante import Participante
 from ..errores import NoEncontrado, OperacionInvalida
 from ..permisos import Accion, Identidad, Politica
-from ..puertos import RepositorioDeCompeticiones, RepositorioDeParticipantes
+from ..puertos import (
+    RepositorioDeCompeticiones,
+    RepositorioDeDivisiones,
+    RepositorioDeParticipantes,
+)
 
 
 class ServicioDeInscripciones:
@@ -21,10 +26,14 @@ class ServicioDeInscripciones:
         competiciones: RepositorioDeCompeticiones,
         participantes: RepositorioDeParticipantes,
         politica: Politica,
+        divisiones: RepositorioDeDivisiones | None = None,
     ) -> None:
         self._competiciones = competiciones
         self._participantes = participantes
         self._politica = politica
+        #: Opcional: el repositorio en memoria no tiene FK que proteger, así
+        #: que los tests que no lo pasan siguen funcionando igual.
+        self._divisiones = divisiones
 
     def inscritos(self, competicion_id: CompeticionId) -> tuple[Participante, ...]:
         return self._participantes.de_competicion(competicion_id)
@@ -56,6 +65,9 @@ class ServicioDeInscripciones:
                 f"Ya hay un participante llamado {limpio!r} en esta competición."
             )
 
+        if division_id:
+            self._asegurar_division(competicion_id, division_id)
+
         participante = Participante(
             id=participante_id,
             nombre=limpio,
@@ -73,3 +85,19 @@ class ServicioDeInscripciones:
             actor, Accion.INSCRIBIR_PARTICIPANTE, participante.competicion_id
         )
         self._participantes.eliminar(participante_id)
+
+    def _asegurar_division(
+        self, competicion_id: CompeticionId, division_id: DivisionId
+    ) -> None:
+        """Crea la división si todavía no existe.
+
+        `participantes.division_id` la referencia por FK en Supabase: guardar
+        el participante sin esto primero revienta contra la base real, aunque
+        el repositorio en memoria —sin integridad referencial— lo tolere.
+        """
+        if self._divisiones is None:
+            return
+        if self._divisiones.obtener(competicion_id, division_id) is None:
+            self._divisiones.guardar(
+                competicion_id, Division(id=division_id, nombre=division_id)
+            )

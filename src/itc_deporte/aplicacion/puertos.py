@@ -17,9 +17,11 @@ from __future__ import annotations
 from typing import Protocol, Sequence, runtime_checkable
 
 from ..domain.competicion import Competicion
+from ..domain.division import Division
 from ..domain.enfrentamiento import Enfrentamiento
 from ..domain.identidades import (
     CompeticionId,
+    DivisionId,
     EnfrentamientoId,
     FaseId,
     ParticipanteId,
@@ -51,7 +53,6 @@ class RepositorioDeParticipantes(Protocol):
 
     def eliminar(self, participante_id: ParticipanteId) -> None: ...
 
-from ..domain.division import Division
 
 @runtime_checkable
 class RepositorioDeDivisiones(Protocol):

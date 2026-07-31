@@ -25,6 +25,7 @@ from itc_deporte.infraestructura.autenticacion import (
 )
 from itc_deporte.infraestructura.memoria import (
     CompeticionesEnMemoria,
+    DivisionesEnMemoria,
     EnfrentamientosEnMemoria,
     ParticipantesEnMemoria,
 )
@@ -46,6 +47,7 @@ def base_vacia(monkeypatch):
             ParticipantesEnMemoria(),
             EnfrentamientosEnMemoria(),
             ConcesionesEnMemoria([Concesion(ADMIN.usuario_id, Rol.ADMIN)]),
+            DivisionesEnMemoria(),
         )
         return repos, AutenticadorEnMemoria([ADMIN, MIRON]), False
 
