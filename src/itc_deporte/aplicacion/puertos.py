@@ -51,6 +51,22 @@ class RepositorioDeParticipantes(Protocol):
 
     def eliminar(self, participante_id: ParticipanteId) -> None: ...
 
+from ..domain.division import Division
+
+@runtime_checkable
+class RepositorioDeDivisiones(Protocol):
+    """Existe porque `participantes.division_id` referencia esta tabla por FK:
+    guardar un participante con una división que no está aquí todavía revienta
+    contra Supabase, aunque el repositorio en memoria lo tolere."""
+
+    def obtener(
+        self, competicion_id: CompeticionId, division_id: DivisionId
+    ) -> Division | None: ...
+
+    def de_competicion(self, competicion_id: CompeticionId) -> tuple[Division, ...]: ...
+
+    def guardar(self, competicion_id: CompeticionId, division: Division) -> None: ...
+
 
 @runtime_checkable
 class RepositorioDeEnfrentamientos(Protocol):
