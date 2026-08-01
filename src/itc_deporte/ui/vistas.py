@@ -61,6 +61,13 @@ def _ejecutar(accion, *args, exito: str = "Hecho.", **kwargs) -> bool:
 
 
 def _pintar_clasificacion(filas, nombres) -> None:
+    st.markdown('<div class="itc-tarjeta" style="border-left:none;">', unsafe_allow_html=True)
+    st.dataframe(
+        [...],  # exactamente igual, sin tocar
+        hide_index=True,
+        width="stretch",
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
     st.dataframe(
         [
             {
