@@ -139,6 +139,77 @@ def barra_lateral(yo: Identidad):
             format_func=lambda c: f"{c.deporte.icono} {c.nombre}",
         )
 
+def barra_lateral(yo: Identidad):
+    with st.sidebar:
+        st.markdown(
+            '<div class="itc-side-card">'
+            '<div style="font-family:Poppins;font-weight:700;font-size:1.05rem;'
+            'letter-spacing:1px;">🏅 ITC DEPORTES</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+        if st.button(f"{tema.actual()['ico']} {tema.actual()['lbl']}"):
+            tema.alternar()
+            st.rerun()
+
+        if SERVICIOS.es_demostracion:
+            st.markdown('<div class="itc-side-card">', unsafe_allow_html=True)
+            _selector_de_papel(yo)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="itc-side-card">', unsafe_allow_html=True)
+        if yo is ANONIMO:
+            st.markdown(
+                '<div class="itc-side-user">'
+                '<div class="itc-side-avatar">👤</div>'
+                '<div><div class="itc-side-name">Visitante</div>'
+                '<div class="itc-side-role">Sin identificar</div></div></div>',
+                unsafe_allow_html=True,
+            )
+            st.caption("Puedes consultar tablas, calendarios y cuadros.")
+            with st.expander("🔐 Iniciar sesión"):
+                with st.form("acceso"):
+                    correo = st.text_input("Correo")
+                    contrasena = st.text_input("Contraseña", type="password")
+                    if st.form_submit_button("Entrar") and correo:
+                        sesion = SERVICIOS.autenticador.iniciar_sesion(
+                            correo, contrasena
+                        )
+                        if sesion:
+                            st.session_state.token = sesion.token
+                            st.rerun()
+                        else:
+                            st.error("Correo o contraseña incorrectos.")
+        else:
+            roles = SERVICIOS.politica.roles_de(yo)
+            etiqueta_rol = "Administrador" if Rol.ADMIN in roles else "Registrador"
+            st.markdown(
+                '<div class="itc-side-user">'
+                '<div class="itc-side-avatar">⭐</div>'
+                f'<div><div class="itc-side-name">{yo.email or yo.usuario_id}</div>'
+                f'<div class="itc-side-role">{etiqueta_rol}</div></div></div>',
+                unsafe_allow_html=True,
+            )
+            if st.button("Cerrar sesión"):
+                st.session_state.token = None
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.markdown('<div class="itc-side-card">', unsafe_allow_html=True)
+        tema.seccion("🏆 Competiciones")
+        competiciones = SERVICIOS.competiciones.listar()
+        if not competiciones:
+            st.markdown('</div>', unsafe_allow_html=True)
+            return None
+        seleccion = st.radio(
+            "Competición",
+            competiciones,
+            format_func=lambda c: f"{c.deporte.icono} {c.nombre}",
+            label_visibility="collapsed",
+        )
+        st.markdown('</div>', unsafe_allow_html=True)
+        return seleccion
+
 
 def main() -> None:
     tema.aplicar()
