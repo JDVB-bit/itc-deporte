@@ -133,7 +133,7 @@ create table enfrentamientos (
         references grupos (competicion_id, fase_id, id) on delete set null,
     -- Nadie se enfrenta a sí mismo. En el esquema anterior esto no era
     -- expresable, porque los dos lados vivían dentro de la misma cadena.
-    check (local_id is distinct from visitante_id),
+        check (local_id is null or visitante_id is null or local_id <> visitante_id),
     -- Las casillas vacías del cuadro son legítimas mientras no se sepa quién
     -- las ocupa; en la fase de grupos ambos lados están siempre definidos.
     check (ronda is not null or (local_id is not null and visitante_id is not null))
