@@ -72,7 +72,7 @@ class TestLoQueVeUnVisitante:
 
     def test_la_tabla_de_posiciones_se_muestra(self):
         app = abrir()
-        assert app.dataframe, "no se pintó ninguna tabla"
+        assert app.table, "no se pintó ninguna tabla"  # antes: app.dataframe
 
     def test_el_cuadro_sin_generar_lo_dice(self):
         app = abrir()
