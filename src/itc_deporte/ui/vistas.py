@@ -12,6 +12,7 @@ import datetime as dt
 import unicodedata
 
 import streamlit as st
+import pandas as pd
 
 from ..aplicacion.errores import ErrorDeAplicacion
 from ..aplicacion.permisos import Accion, Identidad
