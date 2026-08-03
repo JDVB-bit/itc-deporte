@@ -234,9 +234,9 @@ class TestInscribir:
         el hueco mostraría la lista de antes de inscribir y parecería que la
         acción no hizo nada."""
         app = abrir(papel="Administrador")
-        antes = len(app.dataframe[1].value)
+        antes = len(app.dataframe[0].value)
         app = self._inscribir(app, "Equipo Nuevo")
-        assert len(app.dataframe[1].value) == antes + 1
+        assert len(app.dataframe[0].value) == antes + 1
 
     def test_un_nombre_repetido_se_rechaza_con_su_motivo(self):
         app = self._inscribir(abrir(papel="Administrador"), "Los Tigres")
