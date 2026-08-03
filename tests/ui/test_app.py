@@ -72,7 +72,9 @@ class TestLoQueVeUnVisitante:
 
     def test_la_tabla_de_posiciones_se_muestra(self):
         app = abrir()
-        assert app.table, "no se pintó ninguna tabla"  # antes: app.dataframe
+        assert any("itc-tabla" in m.value for m in app.markdown), (
+            "no se pintó ninguna tabla"
+        )
 
     def test_el_cuadro_sin_generar_lo_dice(self):
         app = abrir()
