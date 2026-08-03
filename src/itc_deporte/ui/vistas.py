@@ -13,6 +13,7 @@ import unicodedata
 
 import streamlit as st
 import pandas as pd
+from html import escape as _esc
 
 from ..aplicacion.errores import ErrorDeAplicacion
 from ..aplicacion.permisos import Accion, Identidad
@@ -58,28 +59,25 @@ def _ejecutar(accion, *args, exito: str = "Hecho.", **kwargs) -> bool:
     return True
 
 
-# ── Consulta ────────────────────────────────────────────────────────────────
+# ── Consulta ───────────────────────────────────────────────────────────────
 
 
 def _pintar_clasificacion(filas, nombres) -> None:
-    tabla = pd.DataFrame(
-        [
-            {
-                "#": posicion,
-                "Equipo": nombres.get(f.participante_id, f.participante_id),
-                "PJ": f.jugados,
-                "G": f.ganados,
-                "E": f.empatados,
-                "P": f.perdidos,
-                "AF": f.a_favor,
-                "EC": f.en_contra,
-                "DIF": f.diferencia,
-                "Pts": f.puntos,
-            }
-            for posicion, f in enumerate(filas, start=1)
-        ]
+    filas_html = "".join(
+        f"<tr><td>{posicion}</td>"
+        f"<td>{_esc(nombres.get(f.participante_id, f.participante_id))}</td>"
+        f"<td>{f.jugados}</td><td>{f.ganados}</td><td>{f.empatados}</td><td>{f.perdidos}</td>"
+        f"<td>{f.a_favor}</td><td>{f.en_contra}</td><td>{f.diferencia}</td>"
+        f'<td class="itc-pts">{f.puntos}</td></tr>'
+        for posicion, f in enumerate(filas, start=1)
     )
-    st.table(tabla.style.hide(axis="index"))
+    st.markdown(
+        "<table class='itc-tabla'>"
+        "<thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th>"
+        "<th>P</th><th>AF</th><th>EC</th><th>DIF</th><th>Pts</th></tr></thead>"
+        f"<tbody>{filas_html}</tbody></table>",
+        unsafe_allow_html=True,
+    )
 
 
 def tabla_de_posiciones(servicios, competicion, fase) -> None:
