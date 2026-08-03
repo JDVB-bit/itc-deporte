@@ -294,6 +294,30 @@ def aplicar() -> None:
         .itc-casilla.ganador {{ border-color: var(--ac); color: var(--achi); box-shadow: 0 0 0 1px var(--ac); }}
         .itc-vacia {{ color: var(--tx3); font-style: italic; }}
 
+        .itc-tabla {{
+            width:100%; border-collapse:collapse; margin-bottom:14px; font-size:0.88rem;
+        }}
+        .itc-tabla thead tr {{
+            background:{t['bgc']}; border-bottom:2px solid {t['ac']};
+        }}
+        .itc-tabla th {{
+            color:{t['ac']}; text-transform:uppercase; letter-spacing:1.5px;
+            font-size:0.68rem; font-weight:700; padding:7px 10px; text-align:center;
+        }}
+        .itc-tabla th:first-child, .itc-tabla td:first-child {{
+            width:28px; text-align:center; color:{t['tx3']};
+        }}
+        .itc-tabla th:nth-child(2), .itc-tabla td:nth-child(2) {{
+            text-align:left; padding-left:14px;
+        }}
+        .itc-tabla td {{
+            padding:7px 10px; text-align:center; color:{t['tx']};
+            border-bottom:1px solid {t['bga']};
+        }}
+        .itc-tabla tbody tr:nth-child(even) {{ background:{t['bgc']}; }}
+        .itc-tabla tbody tr:hover {{ background:{t['bgs']}; }}
+        .itc-pts {{ color:{t['achi']}; font-weight:700; }}
+        
         /* ── Tabla (st.table: HTML plano, sin toolbar ni buscador) ─────────── */
         div[data-testid="stTable"] {{
             border-radius: var(--radius-md);
