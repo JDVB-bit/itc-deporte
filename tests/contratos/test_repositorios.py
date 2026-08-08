@@ -99,6 +99,17 @@ class ContratoDeCompeticiones:
     def test_eliminar_lo_que_no_existe_no_revienta(self, repositorio):
         repositorio.eliminar("fantasma")
 
+    def test_admite_una_casilla_de_cuadro_totalmente_vacia(self, repositorio):
+    """Una ronda del cuadro que aún no conoce a ninguno de los dos lados —
+    el estado en que `Bracket.desde_clasificados` deja las rondas
+    posteriores a la primera. El dominio lo permite; el CHECK de Supabase
+    lo rechazaba por la semántica de `IS DISTINCT FROM` con NULL."""
+    vacia = Enfrentamiento(
+        "e-vacia", None, None, competicion_id="c1", fase_id="f1", ronda=1, slot=0
+    )
+    repositorio.guardar(vacia)
+    assert repositorio.obtener("e-vacia").local is None
+
 
 # ── Participantes ────────────────────────────────────────────────────────────
 
