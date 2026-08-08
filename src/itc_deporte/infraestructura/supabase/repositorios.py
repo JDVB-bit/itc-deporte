@@ -35,9 +35,28 @@ from ...aplicacion.permisos import Concesion, Rol
 from . import mapeadores as m
 
 
+from postgrest.exceptions import APIError
+from ...aplicacion.errores import ErrorDeInfraestructura
+
 class _Base:
     def __init__(self, cliente: Any) -> None:
         self._db = cliente
+
+    def _ejecutar(self, consulta):
+        """Traduce un fallo de PostgREST antes de que cruce hacia la interfaz.
+
+        Sin esto, un `APIError` —una política RLS, una restricción violada—
+        sube sin traducir hasta Streamlit, que corta la página entera con un
+        error genérico y redactado. Aquí se convierte en `ErrorDeInfraestructura`,
+        que `vistas._ejecutar` ya sabe mostrar como aviso sin tumbar la app.
+        """
+        try:
+            return consulta.execute()
+        except APIError as error:
+            detalle = f" ({error.details})" if getattr(error, "details", None) else ""
+            raise ErrorDeInfraestructura(
+                f"Supabase rechazó la operación: {error.message}{detalle}"
+            ) from error
 
     def _filas(self, respuesta) -> list[dict]:
         return list(getattr(respuesta, "data", None) or [])
