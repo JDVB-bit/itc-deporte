@@ -93,9 +93,15 @@ create policy "lectura publica" on marcadores     for select using (true);
 -- Solo el admin toca el catálogo y la estructura de las competiciones.
 create policy "solo admin" on deportes      for all using (es_admin()) with check (es_admin());
 create policy "solo admin" on competiciones for all using (es_admin()) with check (es_admin());
-create policy "solo admin" on divisiones    for all using (es_admin()) with check (es_admin());
 create policy "solo admin" on fases         for all using (es_admin()) with check (es_admin());
 create policy "solo admin" on grupos        for all using (es_admin()) with check (es_admin());
+
+-- Las divisiones no son estructura del torneo: son el curso del equipo, y nacen
+-- al inscribirlo. Con «solo admin» aquí, un registrador podía inscribir al
+-- equipo y no podía crear su curso, que es la mitad de la misma operación.
+create policy "registrador de la competicion" on divisiones
+    for all using (puede_registrar(competicion_id))
+    with check (puede_registrar(competicion_id));
 
 -- El registrador escribe participantes y resultados, solo en lo suyo.
 create policy "registrador de la competicion" on participantes

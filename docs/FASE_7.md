@@ -73,6 +73,32 @@ select * from concesiones;
 A partir de ahí, ese admin puede repartir el resto de concesiones desde la
 aplicación.
 
+## Paso 3b — Las dos claves
+
+La aplicación usa **dos** claves de Supabase, y hay que poner las dos en los
+secretos de Streamlit Cloud:
+
+| Secreto | Cuál es | Para qué |
+|---|---|---|
+| `SUPABASE_URL` | la URL del proyecto | — |
+| `SUPABASE_ANON_KEY` | la `anon` / `publishable` | leer y escribir datos |
+| `SUPABASE_KEY` | la `service_role` | invitar registradores por correo |
+
+Las dos están en **Project Settings → API**.
+
+Que sean dos no es burocracia. El cliente de datos va con la `anon` **y con el
+JWT de quien está usando la aplicación**, que es lo que hace que `auth.uid()`
+exista dentro de Postgres y que las políticas de `permisos.sql` decidan algo. Con
+una sola clave `service_role` la aplicación escribe igual, pero saltándose RLS
+por completo: la segunda línea de defensa que ese archivo documenta no estaría
+activa, y nada lo diría.
+
+La `service_role` queda reservada a la API de administración de Auth —`invitar` y
+`por_email` la exigen— y no toca datos. **No debe llegar nunca al navegador**;
+los secretos de Streamlit se quedan en el servidor.
+
+Si falta cualquiera de las dos, la aplicación no arranca y dice cuál falta.
+
 ## Paso 4 — Correr los tests contra la instancia
 
 Este es el paso que convierte "escrito con cuidado" en "funciona":
@@ -128,5 +154,6 @@ Registradores:
 | 1 · Proyecto de pruebas | Panel de Supabase | no |
 | 2 · `esquema.sql` + `permisos.sql` | SQL Editor | no |
 | 3 · Primer admin | Panel + SQL Editor | no |
+| 3b · Las dos claves | Secretos de Streamlit | sí, si falta una |
 | 4 · `pytest -m supabase` | Terminal | borra las tablas nuevas |
 | — · `corte.sql` | tras la Fase 8 | **sí, la app vieja** |

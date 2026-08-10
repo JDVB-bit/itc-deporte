@@ -128,6 +128,7 @@ class ParticipantesSupabase(_Base):
         )
 
     def guardar(self, participante: Participante) -> None:
+        self._asegurar_division(participante)
         self._db.table("participantes").upsert(
             m.participante_a_fila(participante), on_conflict="id"
         ).execute()
@@ -137,6 +138,33 @@ class ParticipantesSupabase(_Base):
         filas = m.miembros_a_filas(participante)
         if filas:
             self._db.table("miembros").upsert(filas, on_conflict="id").execute()
+
+    def _asegurar_division(self, participante: Participante) -> None:
+        """Da de alta la división del participante si aún no existe.
+
+        `participantes` referencia `divisiones` con una clave ajena compuesta,
+        y **nada** escribía nunca en esa tabla: no hay repositorio de
+        divisiones ni servicio que las cree. En memoria no se notaba, porque no
+        hay integridad referencial; contra Postgres, inscribir a alguien con su
+        curso —que es lo que pide el formulario, con «601» de ejemplo— era una
+        violación de clave ajena. Inscribir sin curso no fallaba, porque una
+        clave ajena compuesta con un lado nulo no se comprueba, y por eso el
+        camino roto era justo el que usa el colegio.
+
+        La división nace con el curso como nombre. La jerarquía de
+        `CatalogoDeDivisiones` sigue sin usarse: darle padres es otra pantalla,
+        no un requisito para poder inscribir.
+        """
+        if not participante.division_id:
+            return
+        self._db.table("divisiones").upsert(
+            {
+                "id": participante.division_id,
+                "competicion_id": participante.competicion_id,
+                "nombre": participante.division_id,
+            },
+            on_conflict="competicion_id,id",
+        ).execute()
 
     def eliminar(self, participante_id: ParticipanteId) -> None:
         self._db.table("participantes").delete().eq("id", participante_id).execute()

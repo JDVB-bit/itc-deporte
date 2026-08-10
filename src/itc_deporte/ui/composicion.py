@@ -40,8 +40,16 @@ from ..domain.reglas.fixture import ConfigFixture
 from ..domain.reglas.puntuacion import PorSets
 
 
-class BaseSinPreparar(RuntimeError):
+class SistemaSinPreparar(RuntimeError):
+    """No se puede arrancar contra Supabase con lo que hay configurado."""
+
+
+class BaseSinPreparar(SistemaSinPreparar):
     """Hay credenciales pero la base no tiene el esquema del sistema nuevo."""
+
+
+class ClavesIncompletas(SistemaSinPreparar):
+    """Falta una de las dos claves. Ver `_sobre_supabase` para por qué son dos."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,19 +94,27 @@ PAPELES_DE_DEMOSTRACION = (
 )
 
 
-def construir(secretos: Any = None) -> Servicios:
+def construir(secretos: Any = None, token: str | None = None) -> Servicios:
     """Arma los servicios.
 
     Sin credenciales usa memoria y datos de muestra. **Con** credenciales usa
     Supabase o falla: caer a la demostración cuando la base no responde sería
     mostrar competiciones inventadas como si fueran reales, que es peor que no
     arrancar.
+
+    `token` es el JWT de quien está mirando. Viaja hasta el cliente de datos
+    para que `auth.uid()` exista dentro de Postgres; sin él las políticas de
+    `permisos.sql` no pueden decidir nada. Ver `_sobre_supabase`.
     """
     url = _leer(secretos, "SUPABASE_URL")
-    clave = _leer(secretos, "SUPABASE_KEY")
+    servicio = _leer(secretos, "SUPABASE_KEY")
+    publica = _leer(secretos, "SUPABASE_ANON_KEY")
 
-    if url and clave:
-        repositorios, autenticador, demostracion = _sobre_supabase(url, clave)
+    if url and (servicio or publica):
+        _exigir_las_dos_claves(servicio, publica)
+        repositorios, autenticador, demostracion = _sobre_supabase(
+            url, servicio, publica, token
+        )
         _exigir_esquema(repositorios[0])
     else:
         repositorios, autenticador, demostracion = _en_memoria()
@@ -114,7 +130,7 @@ def construir(secretos: Any = None) -> Servicios:
         sorteo=ServicioDeSorteo(
             competiciones, participantes, enfrentamientos, politica
         ),
-        resultados=ServicioDeResultados(enfrentamientos, politica),
+        resultados=ServicioDeResultados(enfrentamientos, competiciones, politica),
         clasificacion=clasificacion,
         cuadro=ServicioDeCuadroFinal(
             competiciones, enfrentamientos, clasificacion, politica
@@ -158,7 +174,42 @@ def _leer(secretos: Any, clave: str) -> str | None:
     return os.getenv(clave)
 
 
-def _sobre_supabase(url: str, clave: str):
+def _exigir_las_dos_claves(servicio: str | None, publica: str | None) -> None:
+    """El sistema necesita las dos, y por motivos distintos. Ver `_sobre_supabase`."""
+    if servicio and publica:
+        return
+    falta, para_que = (
+        ("SUPABASE_ANON_KEY", "leer y escribir datos con los permisos de quien mira")
+        if publica is None
+        else ("SUPABASE_KEY", "invitar registradores por correo")
+    )
+    raise ClavesIncompletas(
+        f"Falta el secreto `{falta}`, que hace falta para {para_que}.\n\n"
+        "El sistema usa dos claves de Supabase a propósito: la `anon` para los "
+        "datos, de modo que las políticas RLS decidan, y la `service_role` solo "
+        "para la API de administración de Auth.\n\n"
+        "Las dos están en Project Settings → API. Ver `docs/FASE_7.md`."
+    )
+
+
+def _sobre_supabase(
+    url: str, clave_servicio: str, clave_publica: str, token: str | None
+):
+    """Dos clientes, y la separación importa.
+
+    Antes había uno solo y nunca llevaba la sesión de nadie, así que dentro de
+    Postgres `auth.uid()` era NULL: `es_admin()` y `puede_registrar()` daban
+    false siempre y **ninguna** política de `permisos.sql` podía autorizar una
+    escritura. Solo funcionaba con la clave `service_role`, que salta RLS por
+    completo —y entonces la «segunda línea de defensa» que ese archivo
+    documenta no existía.
+
+    - **Datos**: clave `anon` más el JWT de quien mira. Es lo que hace que RLS
+      decida de verdad, con los permisos de esa persona y no con los de nadie.
+    - **Administración**: `service_role`, y solo para Auth. `invitar` y
+      `por_email` usan la API de administración, que la exige. No toca datos,
+      así que no puede saltarse RLS por descuido.
+    """
     import supabase
 
     from ..infraestructura.supabase.auth import AutenticadorSupabase
@@ -169,14 +220,18 @@ def _sobre_supabase(url: str, clave: str):
         ParticipantesSupabase,
     )
 
-    cliente = supabase.create_client(url, clave)
+    datos = supabase.create_client(url, clave_publica)
+    if token:
+        datos.postgrest.auth(token)
+    administracion = supabase.create_client(url, clave_servicio)
+
     repositorios = (
-        CompeticionesSupabase(cliente),
-        ParticipantesSupabase(cliente),
-        EnfrentamientosSupabase(cliente),
-        ConcesionesSupabase(cliente),
+        CompeticionesSupabase(datos),
+        ParticipantesSupabase(datos),
+        EnfrentamientosSupabase(datos),
+        ConcesionesSupabase(datos),
     )
-    return repositorios, AutenticadorSupabase(cliente), False
+    return repositorios, AutenticadorSupabase(administracion), False
 
 
 def _en_memoria():
@@ -221,7 +276,7 @@ def _sembrar(repositorios, admin: Identidad) -> None:
     sorteo = ServicioDeSorteo(
         competiciones, participantes, enfrentamientos, politica, azar=random.Random(7)
     )
-    resultados = ServicioDeResultados(enfrentamientos, politica)
+    resultados = ServicioDeResultados(enfrentamientos, competiciones, politica)
 
     for datos in _COMPETICIONES_DE_MUESTRA:
         servicio.crear(admin, _competicion_de_muestra(**datos))

@@ -89,6 +89,27 @@ def _pintar_clasificacion(filas, nombres) -> None:
     )
 
 
+def _calcular(consulta, *args):
+    """Una tabla, o `None` si algún resultado guardado la hace incalculable.
+
+    La segunda línea del mismo fallo: registrar ya rechaza un marcador que las
+    reglas no admiten, pero eso no arregla lo que se guardó antes de que lo
+    rechazara. Con un 2-2 dentro de una competición por sets, calcular la tabla
+    lanza, y sin esto la pestaña entera quedaba en pantalla de error —sin
+    decir qué pasaba ni desde dónde corregirlo.
+    """
+    try:
+        return consulta(*args)
+    except ErrorDeDominio as error:
+        st.error(
+            "No se puede calcular la tabla: hay un resultado guardado que las "
+            f"reglas de esta competición no admiten.\n\n{error}\n\n"
+            "Corrígelo desde la pestaña **Calendario**.",
+            icon="⚠️",
+        )
+        return None
+
+
 def tabla_de_posiciones(servicios, competicion, fase) -> None:
     """Una tabla por grupo cuando los hay; si no, una sola de toda la fase.
 
@@ -105,16 +126,20 @@ def tabla_de_posiciones(servicios, competicion, fase) -> None:
     if grupos:
         for grupo in grupos:
             tema.seccion(grupo.nombre or grupo.id)
-            filas = servicios.clasificacion.de_grupo(
-                competicion.id, fase.id, grupo.id
+            filas = _calcular(
+                servicios.clasificacion.de_grupo, competicion.id, fase.id, grupo.id
             )
+            if filas is None:
+                return
             if filas:
                 _pintar_clasificacion(filas, nombres)
             else:
                 st.caption("Este grupo todavía no tiene participantes.")
         return
 
-    filas = servicios.clasificacion.de_fase(competicion.id, fase.id)
+    filas = _calcular(servicios.clasificacion.de_fase, competicion.id, fase.id)
+    if filas is None:
+        return
     if not filas:
         st.info("Todavía no hay participantes inscritos.")
         return

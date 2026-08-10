@@ -148,6 +148,30 @@ class ContratoDeParticipantes:
         recuperado = repositorio.obtener("p1")
         assert recuperado.miembros == (Miembro("m1", "Ana", 7),)
 
+    def test_conserva_la_division(self, repositorio):
+        """Inscribir con su curso, que es lo que pide el formulario.
+
+        El hueco por el que se coló el fallo: ningún test de contrato guardaba
+        un participante con división, así que nadie vio que `participantes`
+        referencia `divisiones` con una clave ajena y que **nada** escribía
+        nunca en esa tabla. En memoria daba igual; contra Postgres, inscribir a
+        un equipo con su curso era una violación de restricción. Inscribir sin
+        curso no fallaba —una clave ajena compuesta con un lado nulo no se
+        comprueba—, y por eso el camino roto era justo el que se usa.
+        """
+        from dataclasses import replace
+
+        repositorio.guardar(replace(participante(), division_id="601"))
+        assert repositorio.obtener("p1").division_id == "601"
+
+    def test_dos_participantes_comparten_division(self, repositorio):
+        """La segunda inscripción no puede chocar con la división ya creada."""
+        from dataclasses import replace
+
+        repositorio.guardar(replace(participante("p1"), division_id="601"))
+        repositorio.guardar(replace(participante("p2"), division_id="601"))
+        assert len(repositorio.de_competicion("c1")) == 2
+
     def test_eliminar_lo_quita(self, repositorio):
         repositorio.guardar(participante())
         repositorio.eliminar("p1")

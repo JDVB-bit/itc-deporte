@@ -147,22 +147,25 @@ class TestNoSeDisfrazaDeProduccion:
         monkeypatch.delenv("SUPABASE_KEY", raising=False)
         assert construir(None).es_demostracion
 
+    def _credenciales_que_no_sirven(self, monkeypatch):
+        monkeypatch.setenv("SUPABASE_URL", "https://no-existe.supabase.co")
+        monkeypatch.setenv("SUPABASE_KEY", "x" * 200)
+        monkeypatch.setenv("SUPABASE_ANON_KEY", "y" * 200)
+
     def test_con_credenciales_que_no_sirven_falla_en_vez_de_fingir(self, monkeypatch):
         """El defecto que tenía: un `except Exception` alrededor de la
         composición hacía que un Supabase caído se presentara como una
         demostración, y el usuario veía competiciones inventadas."""
         from itc_deporte.ui.composicion import BaseSinPreparar, construir
 
-        monkeypatch.setenv("SUPABASE_URL", "https://no-existe.supabase.co")
-        monkeypatch.setenv("SUPABASE_KEY", "x" * 200)
+        self._credenciales_que_no_sirven(monkeypatch)
         with pytest.raises(BaseSinPreparar):
             construir(None)
 
     def test_el_mensaje_dice_que_falta_aplicar_el_esquema(self, monkeypatch):
         from itc_deporte.ui.composicion import BaseSinPreparar, construir
 
-        monkeypatch.setenv("SUPABASE_URL", "https://no-existe.supabase.co")
-        monkeypatch.setenv("SUPABASE_KEY", "x" * 200)
+        self._credenciales_que_no_sirven(monkeypatch)
         with pytest.raises(BaseSinPreparar, match="PASO_2.sql"):
             construir(None)
 

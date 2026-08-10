@@ -99,7 +99,9 @@ def servicios(repos):
             politica,
             azar=random.Random(42),
         ),
-        "resultados": ServicioDeResultados(repos["enfrentamientos"], politica),
+        "resultados": ServicioDeResultados(
+            repos["enfrentamientos"], repos["competiciones"], politica
+        ),
         "clasificacion": clasificacion,
         "cuadro": ServicioDeCuadroFinal(
             repos["competiciones"], repos["enfrentamientos"], clasificacion, politica
