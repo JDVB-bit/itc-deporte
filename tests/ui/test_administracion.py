@@ -33,10 +33,23 @@ from itc_deporte.infraestructura.memoria import (
 
 ADMIN = Identidad("admin-1", "admin@itc.edu.co")
 MIRON = Identidad("miron-1", "miron@itc.edu.co")
+PROFE = Identidad("profe-1", "profe@itc.edu.co")
 
 
 @pytest.fixture
-def base_vacia(monkeypatch):
+def concesiones():
+    """El profe es registrador de una competición que no es ninguna de las de
+    aquí: basta para que pueda crear la suya, y no le da nada sobre estas."""
+    return ConcesionesEnMemoria(
+        [
+            Concesion(ADMIN.usuario_id, Rol.ADMIN),
+            Concesion(PROFE.usuario_id, Rol.REGISTRADOR, "otra-competicion"),
+        ]
+    )
+
+
+@pytest.fixture
+def base_vacia(monkeypatch, concesiones):
     """Compone el sistema sin una sola competición, como un despliegue nuevo."""
     from itc_deporte.ui import composicion
 
@@ -47,9 +60,9 @@ def base_vacia(monkeypatch):
             competiciones,
             ParticipantesEnMemoria(),
             EnfrentamientosEnMemoria(),
-            ConcesionesEnMemoria([Concesion(ADMIN.usuario_id, Rol.ADMIN)]),
+            concesiones,
         )
-        return repos, AutenticadorEnMemoria([ADMIN, MIRON]), False
+        return repos, AutenticadorEnMemoria([ADMIN, MIRON, PROFE]), False
 
     monkeypatch.setattr(composicion, "_en_memoria", _sin_datos)
     return competiciones
@@ -225,6 +238,43 @@ class TestUnDeporteQueNoEstaEnElCatalogo:
         app = next(b for b in app.button if "Crear competici" in b.label).click().run()
         assert not base_vacia.listar()
         assert any("nombre del deporte" in w.value.lower() for w in app.warning)
+
+
+class TestUnRegistradorTambienCrea:
+    """Antes no llegaba de dos maneras distintas: no tenía el permiso, y el
+    formulario vivía dentro de la pestaña de administración, que solo aparece
+    para quien puede sortear —cosa que un registrador no puede."""
+
+    def test_se_le_ofrece_sobre_una_base_vacia(self, base_vacia):
+        app = _abrir(como=PROFE)
+        assert any("Crear competici" in b.label for b in app.button)
+
+    def test_puede_crear_la_suya(self, base_vacia):
+        app = _rellenar_y_crear(_abrir(como=PROFE), "La del profe", "voleyball")
+        assert not app.exception
+        assert [c.nombre for c in base_vacia.listar()] == ["La del profe"]
+
+    def test_y_queda_pudiendo_inscribir_en_ella(self, base_vacia):
+        """Lo que faltaría sin la concesión automática: crear una competición
+        en la que uno no puede hacer nada."""
+        app = _rellenar_y_crear(_abrir(como=PROFE), "La del profe", "voleyball").run()
+        assert any("Inscribir" in b.label for b in app.button)
+
+    def test_pero_no_administrarla(self, base_vacia):
+        app = _rellenar_y_crear(_abrir(como=PROFE), "La del profe", "voleyball").run()
+        assert "⚙️ Administrar" not in [p.label for p in app.tabs]
+
+    def test_con_una_competicion_ya_creada_sigue_alcanzando_el_formulario(
+        self, base_vacia
+    ):
+        """El segundo modo de fallo: la pestaña de crear no puede depender de
+        poder administrar la competición que esté abierta."""
+        app = _rellenar_y_crear(_abrir(como=PROFE), "La del profe", "voleyball").run()
+        assert "➕ Nueva competición" in [p.label for p in app.tabs]
+
+    def test_a_quien_no_es_registrador_de_nada_no_se_le_ofrece(self, base_vacia):
+        app = _abrir(como=MIRON)
+        assert not any("Crear competici" in b.label for b in app.button)
 
 
 class TestEstadoDeLaCompeticion:

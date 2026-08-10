@@ -128,7 +128,11 @@ class TestQuienPuedeQue:
 
     @pytest.mark.parametrize(
         "accion",
-        [Accion.SORTEAR, Accion.CREAR_COMPETICION, Accion.GESTIONAR_REGISTRADORES],
+        [
+            Accion.SORTEAR,
+            Accion.ADMINISTRAR_COMPETICION,
+            Accion.GESTIONAR_REGISTRADORES,
+        ],
     )
     def test_el_registrador_no_administra(self, politica, accion):
         assert not politica.puede(PROFE, accion, "c1")
@@ -153,6 +157,50 @@ class TestQuienPuedeQue:
     def test_el_mensaje_nombra_la_competicion(self, politica):
         with pytest.raises(PermisoDenegado, match="c2"):
             politica.exigir(PROFE, Accion.REGISTRAR_RESULTADO, "c2")
+
+
+class TestCrearCompeticionNoNecesitaAmbito:
+    """Crear no ocurre *dentro* de ninguna competición, y ahí estaba el nudo.
+
+    La concesión de un registrador siempre lleva competición, así que preguntar
+    por sus roles sin ámbito no encontraba ninguna: la acción quedaba fuera de
+    su alcance por construcción, no por decisión.
+    """
+
+    def test_el_registrador_puede_crear_la_suya(self, politica):
+        assert politica.puede(PROFE, Accion.CREAR_COMPETICION)
+
+    def test_aunque_su_concesion_sea_de_otra_competicion(self, politica):
+        """Su única concesión es sobre `c1` y aun así puede crear una nueva."""
+        assert politica.puede(PROFE, Accion.CREAR_COMPETICION, "c2")
+
+    def test_el_admin_tambien(self, politica):
+        assert politica.puede(ADMIN, Accion.CREAR_COMPETICION)
+
+    def test_quien_no_tiene_ninguna_concesion_no(self, politica):
+        """Estar identificado no basta: hay que ser registrador de algo."""
+        assert not politica.puede(OTRO, Accion.CREAR_COMPETICION)
+
+    def test_un_visitante_sin_identificar_tampoco(self, politica):
+        assert not politica.puede(ANONIMO, Accion.CREAR_COMPETICION)
+
+    def test_y_no_le_abre_ninguna_otra_puerta(self, politica):
+        """Crear no arrastra administrar: sortear sigue siendo del admin."""
+        assert not politica.puede(PROFE, Accion.SORTEAR, "c1")
+        assert not politica.puede(PROFE, Accion.ADMINISTRAR_COMPETICION, "c1")
+
+    def test_a_anonimo_no_se_le_preguntan_las_concesiones(self):
+        """Su id no es un UUID: preguntarlo tumbó producción una vez.
+
+        `es_registrador_en_alguna` es un camino nuevo hacia el repositorio, así
+        que repite la guarda en lugar de confiar en que nadie llegue.
+        """
+
+        class Explosivo:
+            def de_usuario(self, usuario_id):
+                raise AssertionError(f"no debió preguntarse por {usuario_id!r}")
+
+        assert not Politica(Explosivo()).es_registrador_en_alguna(ANONIMO)
 
 
 class TestConcesionesEnMemoria:

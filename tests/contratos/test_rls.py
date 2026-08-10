@@ -149,6 +149,47 @@ class TestEscribirExigeConcesion:
         assert respuesta.data == []
 
 
+class TestCrearCompeticionSigueExigiendoConcesion:
+    """`competiciones` y `fases` admiten ahora un `insert` de quien sea
+    registrador de algo. La parte que hay que comprobar es la otra: que sin
+    concesión alguna sigue cerrado."""
+
+    def test_el_anonimo_no_crea_fases(self, anonimo, competicion_de_prueba):
+        assert not escribir(
+            anonimo,
+            "fases",
+            {
+                "id": "colada",
+                "competicion_id": competicion_de_prueba,
+                "tipo": "grupos",
+                "nombre": "Colada",
+                "orden": 0,
+            },
+        )
+
+    def test_el_anonimo_no_se_hace_registrador(self, anonimo, competicion_de_prueba):
+        """La política de «quedarse con la que uno crea» exige `es_registrador()`,
+        justo para que nadie se otorgue la primera concesión a sí mismo."""
+        assert not escribir(
+            anonimo,
+            "concesiones",
+            {
+                "usuario_id": "00000000-0000-0000-0000-000000000000",
+                "rol": "registrador",
+                "competicion_id": competicion_de_prueba,
+            },
+        )
+
+    def test_el_anonimo_no_crea_divisiones(self, anonimo, competicion_de_prueba):
+        """Dejaron de ser «solo admin» para que un registrador pueda inscribir
+        con el curso; sin concesión siguen cerradas."""
+        assert not escribir(
+            anonimo,
+            "divisiones",
+            {"id": "601", "competicion_id": competicion_de_prueba, "nombre": "601"},
+        )
+
+
 class TestLasFuncionesDeApoyo:
     def test_es_admin_dice_que_no_para_un_anonimo(self, anonimo):
         assert anonimo.rpc("es_admin", {}).execute().data is False
@@ -156,3 +197,6 @@ class TestLasFuncionesDeApoyo:
     def test_puede_registrar_dice_que_no_para_un_anonimo(self, anonimo):
         respuesta = anonimo.rpc("puede_registrar", {"comp": "rls-prueba"}).execute()
         assert respuesta.data is False
+
+    def test_es_registrador_dice_que_no_para_un_anonimo(self, anonimo):
+        assert anonimo.rpc("es_registrador", {}).execute().data is False

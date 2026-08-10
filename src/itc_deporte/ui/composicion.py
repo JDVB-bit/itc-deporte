@@ -125,7 +125,7 @@ def construir(secretos: Any = None, token: str | None = None) -> Servicios:
         competiciones, participantes, enfrentamientos
     )
     return Servicios(
-        competiciones=ServicioDeCompeticiones(competiciones, politica),
+        competiciones=ServicioDeCompeticiones(competiciones, concesiones, politica),
         inscripciones=ServicioDeInscripciones(competiciones, participantes, politica),
         sorteo=ServicioDeSorteo(
             competiciones, participantes, enfrentamientos, politica
@@ -271,7 +271,7 @@ def _sembrar(repositorios, admin: Identidad) -> None:
     competiciones, participantes, enfrentamientos, concesiones = repositorios
     politica = Politica(concesiones)
 
-    servicio = ServicioDeCompeticiones(competiciones, politica)
+    servicio = ServicioDeCompeticiones(competiciones, concesiones, politica)
     inscripciones = ServicioDeInscripciones(competiciones, participantes, politica)
     sorteo = ServicioDeSorteo(
         competiciones, participantes, enfrentamientos, politica, azar=random.Random(7)

@@ -87,7 +87,7 @@ def servicios(repos):
     )
     return {
         "competiciones": ServicioDeCompeticiones(
-            repos["competiciones"], politica
+            repos["competiciones"], repos["concesiones"], politica
         ),
         "inscripciones": ServicioDeInscripciones(
             repos["competiciones"], repos["participantes"], politica
@@ -159,9 +159,21 @@ class TestCrearCompeticiones:
         with pytest.raises(PermisoDenegado):
             servicios["competiciones"].crear(ANONIMO, competicion_de_prueba("c9", "Nueva"))
 
-    def test_un_registrador_tampoco(self, servicios):
+    def test_un_registrador_si_puede_crear_la_suya(self, servicios):
+        """Cambió a propósito: su concesión es por competición, así que crear
+        una no ocurre dentro de ninguna y no podía autorizarse por ámbito.
+        Quien la crea queda como registrador de ella; administrarla, no."""
+        creada = servicios["competiciones"].crear(
+            REGISTRADOR, competicion_de_prueba("c9", "Nueva")
+        )
+        assert creada.id == "c9"
+
+    def test_pero_sigue_sin_poder_administrarla(self, servicios):
+        servicios["competiciones"].crear(REGISTRADOR, competicion_de_prueba("c9", "Nueva"))
         with pytest.raises(PermisoDenegado):
-            servicios["competiciones"].crear(REGISTRADOR, competicion_de_prueba("c9", "Nueva"))
+            servicios["competiciones"].cambiar_estado(
+                REGISTRADOR, "c9", EstadoCompeticion.FINALIZADA
+            )
 
     def test_un_visitante_no_cambia_el_estado(self, servicios):
         crear_liga(servicios, inscritos=1)

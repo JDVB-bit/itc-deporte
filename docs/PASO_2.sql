@@ -230,6 +230,17 @@ create function puede_registrar(comp text) returns boolean
     );
 $$;
 
+-- Registrador en **alguna** competición, la que sea. Es lo que habilita a crear
+-- una propia: la concesión es por competición, así que la que se está creando
+-- todavía no está en ninguna y `puede_registrar` no puede responder por ella.
+create function es_registrador() returns boolean
+    language sql stable security definer set search_path = public as $$
+    select exists (
+        select 1 from concesiones
+        where usuario_id = auth.uid() and rol = 'registrador'
+    );
+$$;
+
 -- ── Políticas ───────────────────────────────────────────────────────────────
 -- Leer es público: un visitante consulta tablas, resultados y cuadros sin
 -- identificarse. Escribir exige concesión.
@@ -257,11 +268,26 @@ create policy "lectura publica" on inscripciones_en_grupo for select using (true
 create policy "lectura publica" on enfrentamientos for select using (true);
 create policy "lectura publica" on marcadores     for select using (true);
 
--- Solo el admin toca el catálogo y la estructura de las competiciones.
-create policy "solo admin" on deportes      for all using (es_admin()) with check (es_admin());
+-- Modificar la estructura de una competición ya existente es del admin: cambiar
+-- su estado, retocar sus fases, rehacer sus grupos.
 create policy "solo admin" on competiciones for all using (es_admin()) with check (es_admin());
 create policy "solo admin" on fases         for all using (es_admin()) with check (es_admin());
 create policy "solo admin" on grupos        for all using (es_admin()) with check (es_admin());
+
+-- Crear la propia, en cambio, también es del registrador. Solo `insert`: quien
+-- la crea queda como registrador de ella —inscribe y carga resultados— pero no
+-- puede sortearla ni cambiarle el estado, que siguen siendo del admin.
+create policy "crear la propia" on competiciones
+    for insert with check (es_registrador());
+
+create policy "crear la propia" on fases
+    for insert with check (es_registrador());
+
+-- El catálogo de deportes va aparte: dar de alta una competición hace un upsert
+-- de su deporte, exista ya o no, así que con `insert` a secas no bastaría.
+create policy "quien crea competiciones" on deportes
+    for all using (es_admin() or es_registrador())
+    with check (es_admin() or es_registrador());
 
 -- Las divisiones no son estructura del torneo: son el curso del equipo, y nacen
 -- al inscribirlo. Con «solo admin» aquí, un registrador podía inscribir al
@@ -321,3 +347,16 @@ create policy "ver las propias" on concesiones
 
 create policy "solo admin reparte" on concesiones
     for all using (es_admin()) with check (es_admin());
+
+-- Con una excepción acotada: quien crea una competición se queda como
+-- registrador de ella. Solo para sí mismo (`usuario_id = auth.uid()`), solo con
+-- el rol de registrador, solo sobre una competición concreta, y solo si ya era
+-- registrador de algo —así nadie se otorga la primera concesión a sí mismo, que
+-- es lo que mantiene en pie el «el primer admin se crea desde el panel».
+create policy "quedarse con la que uno crea" on concesiones
+    for insert with check (
+        usuario_id = auth.uid()
+        and rol = 'registrador'
+        and competicion_id is not null
+        and es_registrador()
+    );

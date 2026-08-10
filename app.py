@@ -171,30 +171,40 @@ def main() -> None:
 
     pestañas = ["📊 Tabla", "📅 Calendario", "🏆 Cuadro final", "👥 Equipos"]
     administra = SERVICIOS.politica.puede(yo, Accion.SORTEAR, competicion.id)
+    # Crear no depende de la competición abierta, así que va en su propia
+    # pestaña y no dentro de Administrar: un registrador puede crear la suya y
+    # no administra ninguna, de modo que ahí dentro no lo alcanzaba nunca.
+    crea = SERVICIOS.politica.puede(yo, Accion.CREAR_COMPETICION)
     if administra:
         pestañas.append("⚙️ Administrar")
-    abiertas = st.tabs(pestañas)
+    if crea:
+        pestañas.append("➕ Nueva competición")
+    # Por nombre y no por índice: con dos pestañas opcionales, un índice fijo
+    # apunta a otra cosa según quién esté mirando.
+    abiertas = dict(zip(pestañas, st.tabs(pestañas)))
 
-    with abiertas[0]:
+    with abiertas["📊 Tabla"]:
         if grupos:
             vistas.tabla_de_posiciones(SERVICIOS, competicion, grupos)
-    with abiertas[1]:
+    with abiertas["📅 Calendario"]:
         if grupos:
             vistas.calendario(SERVICIOS, competicion, grupos, yo)
-    with abiertas[2]:
+    with abiertas["🏆 Cuadro final"]:
         if eliminatoria:
             vistas.cuadro_final(SERVICIOS, competicion, eliminatoria, yo)
         else:
             st.info("Esta competición no tiene fase eliminatoria.")
-    with abiertas[3]:
+    with abiertas["👥 Equipos"]:
         vistas.participantes(SERVICIOS, competicion, yo)
 
     if administra:
-        with abiertas[4]:
+        with abiertas["⚙️ Administrar"]:
             if grupos:
                 vistas.sorteo(SERVICIOS, competicion, grupos, yo)
             vistas.estado_de_competicion(SERVICIOS, competicion, yo)
             vistas.panel_de_registradores(SERVICIOS, competicion, yo)
+    if crea:
+        with abiertas["➕ Nueva competición"]:
             vistas.nueva_competicion(SERVICIOS, yo)
 
 
