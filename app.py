@@ -14,7 +14,7 @@ import streamlit as st
 from itc_deporte.aplicacion.permisos import ANONIMO, Accion, Identidad, Rol
 from itc_deporte.domain.competicion import FaseDeGrupos, FaseEliminatoria
 from itc_deporte.ui import construir, tema, vistas
-from itc_deporte.ui.composicion import SistemaSinPreparar
+from itc_deporte.ui.composicion import ERRORES_DE_RED, SistemaSinPreparar
 
 st.set_page_config(
     page_title="ITC Deportes",
@@ -46,11 +46,33 @@ def servicios(token: str | None):
     return construir(secretos, token=token)
 
 
+def _sin_conexion(error: Exception) -> None:
+    """Lo dice y ofrece reintentar, en vez de dejar una traza en pantalla.
+
+    El transporte ya reintenta los fallos de red por su cuenta, así que llegar
+    aquí significa que la conexión está caída de verdad. Nada queda a medias:
+    todas las escrituras del sistema son idempotentes, de modo que repetir la
+    operación es inocuo aunque la anterior sí hubiera llegado.
+    """
+    st.error(
+        "Se perdió la conexión con la base de datos.\n\n"
+        f"Detalle: {error}",
+        icon="🔌",
+    )
+    if st.button("Reintentar"):
+        st.rerun()
+    st.stop()
+
+
 try:
     SERVICIOS = servicios(st.session_state.token)
 except SistemaSinPreparar as error:
     st.error(str(error), icon="🗄️")
     st.stop()
+except ERRORES_DE_RED as error:
+    # `st.cache_resource` no guarda lo que lanza, así que reintentar vuelve a
+    # componer de cero.
+    _sin_conexion(error)
 
 
 def actor() -> Identidad:
@@ -201,4 +223,11 @@ def main() -> None:
             vistas.nueva_competicion(SERVICIOS, yo)
 
 
-main()
+try:
+    main()
+except ERRORES_DE_RED as error:
+    # Las escrituras las atrapa `vistas._ejecutar`, que puede decirlo junto al
+    # botón que las pidió. Esto es para las **lecturas** —listar competiciones,
+    # calcular la tabla—, que no tienen dónde caerse y se llevaban la página
+    # entera por delante.
+    _sin_conexion(error)

@@ -12,6 +12,7 @@ lo haga aparecer, y que las acciones lleguen a los servicios.
 
 from __future__ import annotations
 
+import httpx
 import pytest
 
 AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
@@ -64,66 +65,87 @@ class TestArranque:
         assert not any("demostración" in w.value for w in abrir().sidebar.warning)
 
 
+@pytest.fixture
+def sin_credenciales(monkeypatch):
+    """Ni entorno ni secretos.
+
+    Vaciar `st.secrets` no es un detalle: sin eso, estas pruebas pasaban o
+    fallaban según si quien las corre tiene un `.streamlit/secrets.toml` en el
+    proyecto. Una suite que depende de la máquina no dice nada.
+    """
+    import streamlit as st
+
+    for clave in ("SUPABASE_URL", "SUPABASE_KEY", "SUPABASE_ANON_KEY"):
+        monkeypatch.delenv(clave, raising=False)
+    monkeypatch.setattr(st, "secrets", {})
+
+
 class TestSinCredencialesNoArranca:
     """Antes esto caía en una demostración. Parecía amable y era lo contrario:
     un despliegue al que se le olvidara un secreto no fallaba, arrancaba con
     competiciones inventadas y un botón de administrador sin contraseña."""
 
-    def _sin_nada(self, monkeypatch):
-        for clave in ("SUPABASE_URL", "SUPABASE_KEY", "SUPABASE_ANON_KEY"):
-            monkeypatch.delenv(clave, raising=False)
-
-    def test_falta_de_credenciales_es_un_fallo(self, monkeypatch):
+    def test_falta_de_credenciales_es_un_fallo(self, sin_credenciales):
         from itc_deporte.ui.composicion import FaltanCredenciales, construir
 
-        self._sin_nada(monkeypatch)
         with pytest.raises(FaltanCredenciales):
             construir(None)
 
-    def test_el_mensaje_dice_que_secretos_hacen_falta(self, monkeypatch):
+    def test_el_mensaje_dice_que_secretos_hacen_falta(self, sin_credenciales):
         from itc_deporte.ui.composicion import FaltanCredenciales, construir
 
-        self._sin_nada(monkeypatch)
         with pytest.raises(FaltanCredenciales, match="SUPABASE_ANON_KEY"):
             construir(None)
 
-    def test_la_pagina_lo_explica_en_vez_de_reventar(self, monkeypatch):
+    def test_la_pagina_lo_explica_en_vez_de_reventar(self, sin_credenciales):
         """`app.py` atrapa `SistemaSinPreparar` y para con un mensaje."""
-        self._sin_nada(monkeypatch)
         app = AppTest.from_file("app.py", default_timeout=60).run()
         assert not app.exception
         assert any("SUPABASE" in e.value for e in app.error)
 
-    def test_y_no_ofrece_ninguna_manera_de_entrar(self, monkeypatch):
-        self._sin_nada(monkeypatch)
+    def test_y_no_ofrece_ninguna_manera_de_entrar(self, sin_credenciales):
         app = AppTest.from_file("app.py", default_timeout=60).run()
         assert not app.button
 
 
 class TestNoSeDisfrazaDeProduccion:
-    """Un fallo visible es mejor que datos inventados con aspecto de reales."""
+    """Un fallo visible es mejor que datos inventados con aspecto de reales.
 
-    def _credenciales_que_no_sirven(self, monkeypatch):
-        monkeypatch.setenv("SUPABASE_URL", "https://no-existe.supabase.co")
-        monkeypatch.setenv("SUPABASE_KEY", "x" * 200)
-        monkeypatch.setenv("SUPABASE_ANON_KEY", "y" * 200)
+    Se comprueba contra un repositorio que falla, y no contra una URL
+    inventada: apuntar a un dominio que no existe prueba el DNS de quien corre
+    la suite, no el comportamiento del sistema —y desde que los fallos de red
+    se distinguen de los de esquema, ni siquiera prueba este camino.
+    """
 
-    def test_con_credenciales_que_no_sirven_falla_en_vez_de_fingir(self, monkeypatch):
+    def _componer(self, fallo: Exception):
+        from itc_deporte.ui.composicion import _exigir_esquema
+
+        class Repositorio:
+            def listar(self):
+                raise fallo
+
+        return lambda: _exigir_esquema(Repositorio())
+
+    def test_una_base_sin_esquema_falla_en_vez_de_fingir(self):
         """El defecto que tenía: un `except Exception` alrededor de la
-        composición hacía que un Supabase caído se presentara como una
+        composición hacía que un Supabase mal montado se presentara como una
         demostración, y el usuario veía competiciones inventadas."""
-        from itc_deporte.ui.composicion import BaseSinPreparar, construir
+        from itc_deporte.ui.composicion import BaseSinPreparar
 
-        self._credenciales_que_no_sirven(monkeypatch)
         with pytest.raises(BaseSinPreparar):
-            construir(None)
+            self._componer(Exception('relation "competiciones" does not exist'))()
 
-    def test_el_mensaje_dice_que_falta_aplicar_el_esquema(self, monkeypatch):
-        from itc_deporte.ui.composicion import BaseSinPreparar, construir
+    def test_el_mensaje_dice_que_falta_aplicar_el_esquema(self):
+        from itc_deporte.ui.composicion import BaseSinPreparar
 
-        self._credenciales_que_no_sirven(monkeypatch)
         with pytest.raises(BaseSinPreparar, match="PASO_2.sql"):
-            construir(None)
+            self._componer(Exception("no existe la tabla"))()
+
+    def test_una_red_caida_no_se_confunde_con_un_esquema_sin_aplicar(self):
+        """Mandar a aplicar el esquema a quien solo se quedó sin conexión es
+        peor que no decir nada: manda a tocar la base de producción."""
+        with pytest.raises(httpx.TransportError):
+            self._componer(httpx.ConnectError("getaddrinfo failed"))()
 
 
 class TestLoQueVeUnVisitante:
@@ -213,6 +235,64 @@ class TestSoloSeIdentificaUnaVez:
         antes = len(veces)
         app.sidebar.radio[0].set_value(app.sidebar.radio[0].options[1]).run()
         assert len(veces) == antes, "se volvió a identificar sin cambiar de sesión"
+
+
+class TestUnFalloDeRedNoTumbaLaPagina:
+    """El fallo que apareció probando: `httpx.ReadError [WinError 10035]` en
+    mitad de una sesión, y la página entera reemplazada por una traza.
+
+    Venía de una conexión muerta del pool. El transporte ya la reintenta, así
+    que llegar hasta la interfaz significa red caída de verdad —y entonces hay
+    que decirlo, no volcar httpx en pantalla.
+    """
+
+    def test_una_lectura_caida_lo_dice_y_ofrece_reintentar(self, montar):
+        """Las lecturas no tenían dónde caerse: `listar()` se llama al pintar
+        la barra lateral, antes de que ninguna vista pueda atrapar nada."""
+        sistema = muestra.con_liga_en_marcha()
+
+        def explotar():
+            raise httpx.ReadError("[WinError 10035]")
+
+        sistema.competiciones.listar = explotar
+        montar(sistema)
+
+        app = AppTest.from_file("app.py", default_timeout=60).run()
+        assert not app.exception, "la excepción llegó a la pantalla"
+        assert any("conexión" in e.value for e in app.error)
+        assert any("Reintentar" in b.label for b in app.button)
+
+    def test_una_escritura_caida_avisa_junto_al_boton(self, montar):
+        """Estas sí las atrapa `vistas._ejecutar`, que puede decirlo donde se
+        pidió la acción en vez de tirar la página."""
+        sistema = muestra.con_liga_en_marcha()
+
+        def explotar(_participante):
+            raise httpx.ConnectError("sin red")
+
+        sistema.participantes.guardar = explotar
+        montar(sistema)
+
+        app = abrir(como=muestra.ADMIN)
+        app.text_input[0].set_value("Equipo Nuevo")
+        app = next(b for b in app.button if b.label == "Inscribir").click().run()
+        assert not app.exception
+        assert any("conexión" in e.value for e in app.error)
+
+    def test_y_la_pagina_sigue_en_pie(self, montar):
+        """No es una pantalla de error: la barra lateral sigue ahí."""
+        sistema = muestra.con_liga_en_marcha()
+
+        def explotar(_participante):
+            raise httpx.ConnectError("sin red")
+
+        sistema.participantes.guardar = explotar
+        montar(sistema)
+
+        app = abrir(como=muestra.ADMIN)
+        app.text_input[0].set_value("Equipo Nuevo")
+        app = next(b for b in app.button if b.label == "Inscribir").click().run()
+        assert app.sidebar.radio, "se perdió el selector de competición"
 
 
 class TestNoHayRegistro:

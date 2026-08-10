@@ -1,6 +1,11 @@
 streamlit>=1.35.0
 supabase>=2.0.0
 
+# Llega con supabase, pero el sistema lo importa directamente: el transporte
+# que reintenta los fallos de red es un `httpx.HTTPTransport`. Una dependencia
+# que se usa a la cara se declara.
+httpx>=0.27.0
+
 # El código vive en `src/`, que no está en el path por sí solo. Streamlit Cloud
 # solo ejecuta `pip install -r requirements.txt`, así que el propio paquete se
 # instala desde aquí; sin esta línea `import itc_deporte` falla al arrancar.

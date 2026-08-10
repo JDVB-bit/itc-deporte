@@ -35,14 +35,15 @@ from ..domain.enfrentamiento import Marcador
 from ..domain.errores import ErrorDeDominio
 from ..domain.motor.bracket import nombre_de_ronda
 from . import tema
+from .composicion import ERRORES_DE_RED
 
 
 def _ejecutar(accion, *args, exito: str = "Hecho.", **kwargs) -> bool:
     """Llama a un servicio y traduce sus errores a mensajes.
 
-    Los tres tipos que puede lanzar el sistema tienen significados distintos y
-    merecen mensajes distintos: sin permiso, operación improcedente, o dato
-    incoherente.
+    Los tipos que puede lanzar el sistema tienen significados distintos y
+    merecen mensajes distintos: sin permiso, operación improcedente, dato
+    incoherente, o sencillamente la red.
 
     Quien llama **no debe** rehacer la página tras un acierto: Streamlit ya la
     redibuja al enviar un formulario o pulsar un botón, y un `st.rerun()`
@@ -59,6 +60,15 @@ def _ejecutar(accion, *args, exito: str = "Hecho.", **kwargs) -> bool:
         return False
     except ErrorDeDominio as error:
         st.warning(str(error))
+        return False
+    except ERRORES_DE_RED:
+        # El transporte ya reintentó, así que esto es la red caída de verdad.
+        # No se sabe si la escritura llegó; repetirla es inocuo porque todas
+        # son idempotentes, y por eso se puede pedir sin más.
+        st.error(
+            "Se perdió la conexión con la base de datos. Vuelve a intentarlo.",
+            icon="🔌",
+        )
         return False
     st.success(exito, icon="✅")
     return True

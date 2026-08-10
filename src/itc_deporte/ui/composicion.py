@@ -25,6 +25,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
+
 from ..aplicacion.permisos import Politica
 from ..aplicacion.servicios import (
     ServicioDeClasificacion,
@@ -57,6 +59,14 @@ class FaltanCredenciales(SistemaSinPreparar):
     competiciones inventadas y un botón para entrar como administrador sin
     contraseña.
     """
+
+
+#: Lo que puede fallar por red y no por culpa de nadie.
+#:
+#: La interfaz lo atrapa para decir «se cayó la conexión» en vez de mostrar una
+#: traza de httpx. El transporte ya reintenta (ver `supabase/transporte.py`), así
+#: que llegar hasta aquí significa que la red está de verdad caída.
+ERRORES_DE_RED = (httpx.TransportError,)
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,6 +152,10 @@ def _exigir_esquema(competiciones) -> None:
     """
     try:
         competiciones.listar()
+    except ERRORES_DE_RED:
+        # Una red caída no es una base sin preparar. Mandar a aplicar el
+        # esquema a quien solo se quedó sin conexión es peor que no decir nada.
+        raise
     except Exception as error:
         raise BaseSinPreparar(
             "Hay credenciales de Supabase, pero la base no responde a las "
@@ -209,11 +223,19 @@ def _sobre_supabase(
         EnfrentamientosSupabase,
         ParticipantesSupabase,
     )
+    from ..infraestructura.supabase.transporte import cliente_http
 
-    datos = supabase.create_client(url, clave_publica)
+    def crear(clave: str):
+        # El transporte reintenta los fallos de red. Sin él, una conexión
+        # muerta del pool tumbaba la página entera con una traza de httpx.
+        return supabase.create_client(
+            url, clave, supabase.ClientOptions(httpx_client=cliente_http())
+        )
+
+    datos = crear(clave_publica)
     if token:
         datos.postgrest.auth(token)
-    administracion = supabase.create_client(url, clave_servicio)
+    administracion = crear(clave_servicio)
 
     repositorios = (
         CompeticionesSupabase(datos),
