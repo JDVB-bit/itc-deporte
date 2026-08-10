@@ -5,6 +5,6 @@ Aquí no se decide nada: se pide. Cada acción es una llamada a un servicio de
 desapareciera, el sistema seguiría siendo el mismo.
 """
 
-from .composicion import Servicios, construir
+from .composicion import Servicios, construir, ensamblar
 
-__all__ = ["Servicios", "construir"]
+__all__ = ["Servicios", "construir", "ensamblar"]

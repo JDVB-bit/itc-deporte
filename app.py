@@ -4,8 +4,7 @@ Streamlit como adaptador: monta los servicios, muestra lo que devuelven y les
 pide lo que el usuario quiere hacer. No comprueba permisos, no calcula tablas y
 no arma calendarios; de eso se encarga `itc_deporte.aplicacion`.
 
-Sin credenciales de Supabase arranca sobre repositorios en memoria con datos de
-muestra, lo que permite ver la aplicación funcionando sin tocar la red.
+Sin las credenciales de Supabase no arranca, y dice cuál falta.
 """
 
 from __future__ import annotations
@@ -15,7 +14,7 @@ import streamlit as st
 from itc_deporte.aplicacion.permisos import ANONIMO, Accion, Identidad, Rol
 from itc_deporte.domain.competicion import FaseDeGrupos, FaseEliminatoria
 from itc_deporte.ui import construir, tema, vistas
-from itc_deporte.ui.composicion import PAPELES_DE_DEMOSTRACION, SistemaSinPreparar
+from itc_deporte.ui.composicion import SistemaSinPreparar
 
 st.set_page_config(
     page_title="ITC Deportes",
@@ -36,9 +35,9 @@ def servicios(token: str | None):
     dos personas escribieran con los permisos de la que llegó primero. Ver
     `composicion._sobre_supabase`.
 
-    Solo se cae a la demostración cuando de verdad no hay credenciales. Si las
-    hay y algo falla, se propaga: mostrar datos de muestra con aspecto de reales
-    sería peor que no arrancar.
+    Si algo falla, se propaga y la página lo dice: arrancar sobre otra cosa
+    cuando falta un secreto o la base no responde sería mostrar competiciones
+    inventadas con aspecto de reales, que es peor que no arrancar.
     """
     try:
         secretos = st.secrets
@@ -67,37 +66,6 @@ def actor() -> Identidad:
     return identidad or ANONIMO
 
 
-def _selector_de_papel(yo: Identidad) -> None:
-    """En la demostración se puede mirar el sistema desde cada papel.
-
-    No es una pantalla de registro: el sistema no tiene registro a propósito.
-    Un visitante no necesita cuenta, y las cuentas de quien administra o
-    registra se conceden, no se piden. Esto existe solo para poder probar la
-    aplicación sin dar de alta a nadie.
-    """
-    st.warning(
-        "**Modo demostración.** Los datos son de muestra y nada se guarda.",
-        icon="⚠️",
-    )
-    st.caption("Pruébalo desde cada papel:")
-    for usuario_id, correo, etiqueta, explicacion in PAPELES_DE_DEMOSTRACION:
-        soy_yo = (yo.usuario_id if yo is not ANONIMO else None) == usuario_id
-        if st.button(
-            f"{'● ' if soy_yo else ''}{etiqueta}",
-            key=f"papel-{usuario_id}",
-            width="stretch",
-            disabled=soy_yo,
-            help=explicacion,
-        ):
-            # Por el mismo camino que producción: el papel se toma iniciando
-            # sesión, no escribiendo a mano en el estado.
-            sesion = (
-                SERVICIOS.autenticador.iniciar_sesion(correo, "") if correo else None
-            )
-            st.session_state.token = sesion.token if sesion else None
-            st.rerun()
-
-
 def barra_lateral(yo: Identidad):
     with st.sidebar:
         st.markdown("## ITC Deportes")
@@ -106,10 +74,9 @@ def barra_lateral(yo: Identidad):
             st.rerun()
         st.markdown("---")
 
-        if SERVICIOS.es_demostracion:
-            _selector_de_papel(yo)
-            st.markdown("---")
-
+        # No hay pantalla de registro, y es a propósito: un visitante no
+        # necesita cuenta, y las de administrar o registrar se conceden. El
+        # primer admin se crea desde el panel de Supabase (`docs/FASE_7.md`).
         if yo is ANONIMO:
             st.markdown("**👤 Visitante**")
             st.caption("Puedes consultar tablas, calendarios y cuadros.")

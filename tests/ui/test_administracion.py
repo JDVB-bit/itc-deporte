@@ -5,10 +5,10 @@ Este archivo existe por un fallo concreto: `ServicioDeCompeticiones.crear` y
 los invocara. En producción, con la base recién montada, un administrador veía
 "Todavía no hay ninguna competición" y no tenía por dónde seguir.
 
-No lo detectó nadie porque el resto de las pruebas de interfaz corren sobre la
-demostración, que siembra dos competiciones ya hechas: el camino de crear la
-primera no se ejercitaba nunca. Por eso aquí se parte de una base vacía, que es
-lo que de verdad se encuentra un despliegue nuevo.
+No lo detectó nadie porque el resto de las pruebas de interfaz corrían sobre
+datos ya sembrados: el camino de crear la primera competición no se ejercitaba
+nunca. Por eso aquí se parte de una base vacía, que es lo que de verdad se
+encuentra un despliegue nuevo.
 """
 
 from __future__ import annotations
@@ -17,58 +17,40 @@ import pytest
 
 AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 
-from itc_deporte.aplicacion.permisos import Concesion, Identidad, Rol
+import sistema as muestra
+from itc_deporte.aplicacion.permisos import Concesion, Rol
 from itc_deporte.domain.competicion import EstadoCompeticion
 from itc_deporte.domain.enfrentamiento import Marcador
 from itc_deporte.domain.reglas.catalogo import DEPORTES
-from itc_deporte.infraestructura.autenticacion import (
-    AutenticadorEnMemoria,
-    ConcesionesEnMemoria,
-)
-from itc_deporte.infraestructura.memoria import (
-    CompeticionesEnMemoria,
-    EnfrentamientosEnMemoria,
-    ParticipantesEnMemoria,
-)
+from itc_deporte.infraestructura.autenticacion import ConcesionesEnMemoria
 
-ADMIN = Identidad("admin-1", "admin@itc.edu.co")
-MIRON = Identidad("miron-1", "miron@itc.edu.co")
-PROFE = Identidad("profe-1", "profe@itc.edu.co")
+ADMIN = muestra.ADMIN
+MIRON = muestra.MIRON
+PROFE = muestra.PROFE
 
 
 @pytest.fixture
-def concesiones():
-    """El profe es registrador de una competición que no es ninguna de las de
-    aquí: basta para que pueda crear la suya, y no le da nada sobre estas."""
-    return ConcesionesEnMemoria(
-        [
-            Concesion(ADMIN.usuario_id, Rol.ADMIN),
-            Concesion(PROFE.usuario_id, Rol.REGISTRADOR, "otra-competicion"),
-        ]
-    )
+def base_vacia(montar):
+    """El sistema sin una sola competición, como un despliegue recién montado.
 
-
-@pytest.fixture
-def base_vacia(monkeypatch, concesiones):
-    """Compone el sistema sin una sola competición, como un despliegue nuevo."""
-    from itc_deporte.ui import composicion
-
-    competiciones = CompeticionesEnMemoria()
-
-    def _sin_datos():
-        repos = (
-            competiciones,
-            ParticipantesEnMemoria(),
-            EnfrentamientosEnMemoria(),
-            concesiones,
+    El profe es registrador de una competición que no existe aquí: basta para
+    que pueda crear la suya, y no le da nada sobre las que se creen en la
+    prueba.
+    """
+    sistema = montar(
+        muestra.vacio(
+            ConcesionesEnMemoria(
+                [
+                    Concesion(ADMIN.usuario_id, Rol.ADMIN),
+                    Concesion(PROFE.usuario_id, Rol.REGISTRADOR, "otra-competicion"),
+                ]
+            )
         )
-        return repos, AutenticadorEnMemoria([ADMIN, MIRON, PROFE]), False
-
-    monkeypatch.setattr(composicion, "_en_memoria", _sin_datos)
-    return competiciones
+    )
+    return sistema.competiciones
 
 
-def _abrir(como: Identidad | None = None):
+def _abrir(como=None):
     app = AppTest.from_file("app.py", default_timeout=60).run()
     if como is None:
         return app

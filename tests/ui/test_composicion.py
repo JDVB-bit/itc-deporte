@@ -20,6 +20,7 @@ import pytest
 from itc_deporte.ui.composicion import (
     BaseSinPreparar,
     ClavesIncompletas,
+    FaltanCredenciales,
     construir,
 )
 
@@ -158,8 +159,19 @@ class TestLaSesionViajaHastaPostgres:
 
 
 class TestSinCredenciales:
-    def test_no_toca_supabase(self, clientes, monkeypatch):
+    """Ya no hay a dónde caer: antes esto arrancaba una demostración."""
+
+    def _sin_nada(self, monkeypatch):
         for clave in ("SUPABASE_URL", "SUPABASE_KEY", "SUPABASE_ANON_KEY"):
             monkeypatch.delenv(clave, raising=False)
-        construir(None)
+
+    def test_falla_en_vez_de_arrancar(self, monkeypatch):
+        self._sin_nada(monkeypatch)
+        with pytest.raises(FaltanCredenciales):
+            construir(None)
+
+    def test_y_no_llega_a_tocar_supabase(self, clientes, monkeypatch):
+        self._sin_nada(monkeypatch)
+        with pytest.raises(FaltanCredenciales):
+            construir(None)
         assert clientes == []

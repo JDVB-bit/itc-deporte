@@ -513,9 +513,9 @@ def nueva_competicion(servicios, actor: Identidad) -> None:
     """Crear una competición: el camino que no existía.
 
     `ServicioDeCompeticiones.crear` llevaba desde su commit sin que nada lo
-    invocara. En la demostración no se notaba porque las competiciones venían
-    sembradas, así que sobre una base vacía —producción recién montada— un
-    administrador se quedaba sin salida.
+    invocara. No se notaba porque las pruebas de interfaz corrían sobre
+    competiciones ya sembradas, así que sobre una base vacía —producción recién
+    montada— un administrador se quedaba sin salida.
 
     Las fases se piden aquí porque `crear` recibe la competición entera y no
     hay operación para añadirlas después.

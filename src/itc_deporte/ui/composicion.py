@@ -1,23 +1,31 @@
 """Dónde se enchufan las piezas.
 
 Es el único sitio del sistema que conoce a la vez los servicios y las
-implementaciones concretas. Todo lo demás habla con protocolos, y por eso esta
-función puede devolver los mismos servicios apoyados en Supabase o en memoria
-sin que nada más se entere.
+implementaciones concretas. Todo lo demás habla con protocolos, y por eso
+`ensamblar` puede devolver los mismos servicios apoyados en Supabase o en
+memoria sin que nada más se entere.
 
-Esa sustitución no es un adorno: `streamlit run app.py` sin credenciales levanta
-la aplicación entera sobre repositorios en memoria con datos de muestra, lo que
-permite ver la interfaz funcionando sin tocar la red.
+Las dos mitades van separadas a propósito. `ensamblar` monta los servicios
+sobre los repositorios que se le den; `construir` decide cuáles son. La suite de
+interfaz sustituye la segunda y ejercita la primera tal cual, que es lo que
+permite probar la aplicación entera sin red.
+
+**No hay modo demostración.** Lo hubo: sin credenciales la aplicación levantaba
+sobre memoria con dos competiciones sembradas y un selector para mirarla desde
+cada papel. Servía para enseñarla, pero convertía una variable de entorno
+ausente en un botón de administrador sin contraseña, y hacía que la suite de
+interfaz corriera sobre datos que nadie había creado por los caminos de la
+aplicación —así fue como «crear la primera competición» pudo estar roto sin que
+nadie lo viera. Los datos de muestra viven ahora en `tests/ui/sistema.py`, que
+es su sitio.
 """
 
 from __future__ import annotations
 
-import datetime as dt
-import random
 from dataclasses import dataclass
 from typing import Any
 
-from ..aplicacion.permisos import ANONIMO, Concesion, Identidad, Politica, Rol
+from ..aplicacion.permisos import Politica
 from ..aplicacion.servicios import (
     ServicioDeClasificacion,
     ServicioDeCompeticiones,
@@ -27,17 +35,6 @@ from ..aplicacion.servicios import (
     ServicioDeResultados,
     ServicioDeSorteo,
 )
-from ..domain.calendario import Calendario
-from ..domain.competicion import (
-    Competicion,
-    Deporte,
-    EstadoCompeticion,
-    FaseDeGrupos,
-    FaseEliminatoria,
-    ReglasDeCompeticion,
-)
-from ..domain.reglas.fixture import ConfigFixture
-from ..domain.reglas.puntuacion import PorSets
 
 
 class SistemaSinPreparar(RuntimeError):
@@ -50,6 +47,16 @@ class BaseSinPreparar(SistemaSinPreparar):
 
 class ClavesIncompletas(SistemaSinPreparar):
     """Falta una de las dos claves. Ver `_sobre_supabase` para por qué son dos."""
+
+
+class FaltanCredenciales(SistemaSinPreparar):
+    """No hay a qué conectarse.
+
+    Antes esto caía en la demostración. Parecía amable y era lo contrario: un
+    despliegue al que se le olvidara un secreto no fallaba, arrancaba con
+    competiciones inventadas y un botón para entrar como administrador sin
+    contraseña.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,42 +72,14 @@ class Servicios:
     registradores: ServicioDeRegistradores
     autenticador: Any
     politica: Politica
-    #: `True` cuando corre sobre repositorios en memoria, para que la interfaz
-    #: pueda avisar de que nada se guarda.
-    es_demostracion: bool
-
-
-#: Quién existe en la demostración, para poder probar el sistema desde cada
-#: papel sin dar de alta a nadie. En producción no hay atajo: el primer
-#: administrador se crea desde el panel de Supabase (ver `docs/FASE_7.md`).
-#: Cada papel se identifica por su **correo**, no por su id, para que probarlo
-#: pase por `iniciar_sesion` igual que en producción. Guardar el id a mano era
-#: un atajo que solo funcionaba con el doble en memoria, y así fue como el
-#: fallo del token llegó a producción sin que nadie lo viera.
-PAPELES_DE_DEMOSTRACION = (
-    (
-        "demo-admin",
-        "admin@itc.edu.co",
-        "🛠️ Administrador",
-        "Crea competiciones, sortea y reparte permisos.",
-    ),
-    (
-        "demo-registrador",
-        "profe@itc.edu.co",
-        "✍️ Registrador",
-        "Inscribe y carga resultados, solo en Microfútbol.",
-    ),
-    (None, None, "👤 Visitante", "Consulta tablas, calendarios y cuadros."),
-)
 
 
 def construir(secretos: Any = None, token: str | None = None) -> Servicios:
-    """Arma los servicios.
+    """Decide sobre qué van montados los servicios, y los monta.
 
-    Sin credenciales usa memoria y datos de muestra. **Con** credenciales usa
-    Supabase o falla: caer a la demostración cuando la base no responde sería
-    mostrar competiciones inventadas como si fueran reales, que es peor que no
-    arrancar.
+    Contra Supabase o no arranca. Caer a otra cosa cuando falta un secreto o la
+    base no responde sería mostrar competiciones inventadas como si fueran
+    reales, que es peor que no arrancar.
 
     `token` es el JWT de quien está mirando. Viaja hasta el cliente de datos
     para que `auth.uid()` exista dentro de Postgres; sin él las políticas de
@@ -110,15 +89,27 @@ def construir(secretos: Any = None, token: str | None = None) -> Servicios:
     servicio = _leer(secretos, "SUPABASE_KEY")
     publica = _leer(secretos, "SUPABASE_ANON_KEY")
 
-    if url and (servicio or publica):
-        _exigir_las_dos_claves(servicio, publica)
-        repositorios, autenticador, demostracion = _sobre_supabase(
-            url, servicio, publica, token
+    if not url:
+        raise FaltanCredenciales(
+            "Falta el secreto `SUPABASE_URL`, así que no hay a qué conectarse.\n\n"
+            "La aplicación necesita `SUPABASE_URL`, `SUPABASE_ANON_KEY` y "
+            "`SUPABASE_KEY`. Las tres están en Project Settings → API del "
+            "proyecto de Supabase. Ver `docs/FASE_7.md`."
         )
-        _exigir_esquema(repositorios[0])
-    else:
-        repositorios, autenticador, demostracion = _en_memoria()
+    _exigir_las_dos_claves(servicio, publica)
+    repositorios, autenticador = _sobre_supabase(url, servicio, publica, token)
+    _exigir_esquema(repositorios[0])
+    return ensamblar(repositorios, autenticador)
 
+
+def ensamblar(repositorios, autenticador) -> Servicios:
+    """Monta los servicios sobre los repositorios que se le den.
+
+    Va aparte de `construir` porque montar los servicios y decidir sobre qué
+    van montados son dos cosas distintas. La suite de interfaz sustituye la
+    segunda y ejercita esta tal cual, así que lo que prueba es la composición
+    de verdad y no una copia suya que puede quedarse atrás.
+    """
     competiciones, participantes, enfrentamientos, concesiones = repositorios
     politica = Politica(concesiones)
     clasificacion = ServicioDeClasificacion(
@@ -140,7 +131,6 @@ def construir(secretos: Any = None, token: str | None = None) -> Servicios:
         ),
         autenticador=autenticador,
         politica=politica,
-        es_demostracion=demostracion,
     )
 
 
@@ -231,111 +221,4 @@ def _sobre_supabase(
         EnfrentamientosSupabase(datos),
         ConcesionesSupabase(datos),
     )
-    return repositorios, AutenticadorSupabase(administracion), False
-
-
-def _en_memoria():
-    """Un sistema completo en memoria, con una competición ya jugándose."""
-    from ..infraestructura.autenticacion import (
-        AutenticadorEnMemoria,
-        ConcesionesEnMemoria,
-    )
-    from ..infraestructura.memoria import (
-        CompeticionesEnMemoria,
-        EnfrentamientosEnMemoria,
-        ParticipantesEnMemoria,
-    )
-
-    admin = Identidad("demo-admin", "admin@itc.edu.co")
-    registrador = Identidad("demo-registrador", "profe@itc.edu.co")
-    repositorios = (
-        CompeticionesEnMemoria(),
-        ParticipantesEnMemoria(),
-        EnfrentamientosEnMemoria(),
-        ConcesionesEnMemoria(
-            [
-                Concesion("demo-admin", Rol.ADMIN),
-                # Solo sobre una de las dos competiciones, para que se note que
-                # la concesión tiene alcance.
-                Concesion("demo-registrador", Rol.REGISTRADOR, "demo-micro"),
-            ]
-        ),
-    )
-    autenticador = AutenticadorEnMemoria([admin, registrador])
-    _sembrar(repositorios, admin)
-    return repositorios, autenticador, True
-
-
-def _sembrar(repositorios, admin: Identidad) -> None:
-    """Deja una competición sorteada y a medio jugar, para que se vea algo."""
-    competiciones, participantes, enfrentamientos, concesiones = repositorios
-    politica = Politica(concesiones)
-
-    servicio = ServicioDeCompeticiones(competiciones, concesiones, politica)
-    inscripciones = ServicioDeInscripciones(competiciones, participantes, politica)
-    sorteo = ServicioDeSorteo(
-        competiciones, participantes, enfrentamientos, politica, azar=random.Random(7)
-    )
-    resultados = ServicioDeResultados(enfrentamientos, competiciones, politica)
-
-    for datos in _COMPETICIONES_DE_MUESTRA:
-        servicio.crear(admin, _competicion_de_muestra(**datos))
-
-    equipos = [
-        ("601", "Los Tigres"), ("602", "Las Panteras"), ("603", "Halcones"),
-        ("701", "Titanes"), ("702", "Cóndores"), ("801", "Leones"),
-    ]
-    for indice, (curso, nombre) in enumerate(equipos, start=1):
-        inscripciones.inscribir(admin, "demo-micro", f"e{indice}", nombre, curso)
-
-    partidos = sorteo.sortear(admin, "demo-micro", "demo-micro:0", desde=dt.date.today())
-    from ..domain.enfrentamiento import Marcador
-
-    azar = random.Random(11)
-    for partido in partidos[: len(partidos) // 2]:
-        resultados.registrar(
-            admin, partido.id, Marcador(azar.randint(0, 5), azar.randint(0, 5))
-        )
-
-
-_COMPETICIONES_DE_MUESTRA = [
-    dict(
-        id_="demo-micro",
-        nombre="Intercursos — Microfútbol",
-        deporte=Deporte("microfutbol", "Microfútbol", "⚽"),
-    ),
-    dict(
-        id_="demo-voley",
-        nombre="Intercursos — Voleyball",
-        deporte=Deporte("voleyball", "Voleyball", "🏐"),
-        puntuacion=PorSets(),
-    ),
-]
-
-
-def _competicion_de_muestra(id_, nombre, deporte, puntuacion=None) -> Competicion:
-    reglas = ReglasDeCompeticion(puntuacion=puntuacion) if puntuacion else ReglasDeCompeticion()
-    return Competicion(
-        id=id_,
-        nombre=nombre,
-        deporte=deporte,
-        temporada="2026",
-        estado=EstadoCompeticion.EN_CURSO,
-        fases=(
-            FaseDeGrupos(
-                f"{id_}:0",
-                "Fase de grupos",
-                0,
-                config_fixture=ConfigFixture(jornadas_forzadas=7),
-            ),
-            FaseEliminatoria(
-                f"{id_}:1",
-                "Eliminación directa",
-                1,
-                fixture="eliminacion_directa",
-                cupos=16,
-            ),
-        ),
-        reglas=reglas,
-        calendario=Calendario(dia_de_la_semana=5, hora=dt.time(15, 0)),
-    )
+    return repositorios, AutenticadorSupabase(administracion)
