@@ -687,14 +687,16 @@ def panel_de_registradores(servicios, competicion, actor: Identidad) -> None:
     concesiones = servicios.registradores.de_competicion(competicion.id)
     for concesion in concesiones:
         columnas = st.columns([6, 2])
-        columnas[0].markdown(f"`{concesion.usuario_id}`")
+        # Por su correo: se concede por correo, y listarlo por id mostraba un
+        # UUID crudo, con lo que no había forma de saber a quién se revocaba.
+        columnas[0].markdown(f"**{concesion.etiqueta}**")
         if columnas[1].button("Revocar", key=f"rev-{concesion.usuario_id}"):
             if _ejecutar(
                 servicios.registradores.revocar,
                 actor,
                 competicion.id,
                 concesion.usuario_id,
-                exito="Permiso revocado.",
+                exito=f"Permiso revocado a {concesion.etiqueta}.",
             ):
                 st.rerun()
     if not concesiones:

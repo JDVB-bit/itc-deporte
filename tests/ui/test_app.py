@@ -173,6 +173,48 @@ class TestAcceso:
         assert "Contraseña" in campos
 
 
+class TestElPapelQueSeAnuncia:
+    """La barra decía «Registrador» a todo el que no fuera admin, incluido
+    quien no tiene ninguna concesión: `roles_de` sin competición no ve las de
+    registrador, que son por competición."""
+
+    def _caption(self, app) -> str:
+        return " ".join(c.value for c in app.sidebar.caption)
+
+    def test_al_administrador_lo_llama_administrador(self, liga):
+        assert "Administrador" in self._caption(abrir(como=muestra.ADMIN))
+
+    def test_al_registrador_registrador(self, liga):
+        assert "Registrador" in self._caption(abrir(como=muestra.PROFE))
+
+    def test_a_quien_no_tiene_concesiones_no_lo_asciende(self, liga):
+        texto = self._caption(abrir(como=muestra.MIRON))
+        assert "Registrador" not in texto
+        assert "Sin permisos" in texto
+
+
+class TestSoloSeIdentificaUnaVez:
+    """Streamlit reejecuta el guion entero ante cualquier interacción, y cada
+    una costaba una llamada de red para preguntar quién es el mismo de
+    siempre."""
+
+    def test_no_se_vuelve_a_preguntar_en_cada_recarga(self, montar):
+        sistema = montar(muestra.con_liga_en_marcha())
+        autenticador = sistema.servicios.autenticador
+        veces = []
+        original = autenticador.identificar
+
+        def contando(token):
+            veces.append(token)
+            return original(token)
+
+        autenticador.identificar = contando
+        app = abrir(como=muestra.ADMIN)
+        antes = len(veces)
+        app.sidebar.radio[0].set_value(app.sidebar.radio[0].options[1]).run()
+        assert len(veces) == antes, "se volvió a identificar sin cambiar de sesión"
+
+
 class TestNoHayRegistro:
     """El sistema no tiene alta propia a propósito: un visitante no necesita
     cuenta, y las de administrar o registrar se conceden. El primer admin se

@@ -73,6 +73,9 @@ class AutenticadorEnMemoria:
     def por_email(self, email: str) -> Identidad | None:
         return next((i for i in self._por_id.values() if i.email == email), None)
 
+    def por_id(self, usuario_id: str) -> Identidad | None:
+        return self._por_id.get(usuario_id)
+
     def invitar(self, email: str) -> Identidad:
         existente = self.por_email(email)
         if existente is not None:

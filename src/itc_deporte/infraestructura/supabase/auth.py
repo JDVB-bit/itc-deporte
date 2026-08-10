@@ -93,6 +93,18 @@ class AutenticadorSupabase:
                 return _a_identidad(usuario)
         return None
 
+    def por_id(self, usuario_id: str) -> Identidad | None:
+        """Quién es ese id. Un id que ya no existe no es un error del sistema.
+
+        Una concesión sobrevive a su usuario el tiempo que tarde el `on delete
+        cascade`, y el panel tiene que poder pintar esa fila igual.
+        """
+        try:
+            respuesta = self._cliente.auth.admin.get_user_by_id(usuario_id)
+        except Exception:
+            return None
+        return _a_identidad(getattr(respuesta, "user", None))
+
     def invitar(self, email: str) -> Identidad:
         """Da de alta por correo. Si ya existe, devuelve al de siempre."""
         existente = self.por_email(email)

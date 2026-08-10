@@ -59,11 +59,37 @@ def actor() -> Identidad:
     Lo que se guarda es el token, no el id de usuario: es lo único que
     `identificar` acepta. Guardar el id hacía que Supabase no reconociera a
     nadie y todo el mundo navegara como visitante.
+
+    Se resuelve una vez por token y no en cada recarga. Streamlit reejecuta el
+    guion entero ante cualquier interacción —abrir una pestaña, escribir en un
+    campo—, y así cada una de ellas costaba una llamada de red a Supabase solo
+    para volver a preguntar quién es el mismo de siempre.
+
+    Recordarlo no alarga la sesión: el mismo JWT viaja al cliente de datos, y
+    ahí Postgres lo valida en cada consulta. Uno caducado deja de servir para
+    leer o escribir aunque esta caché siga recordando su nombre.
     """
-    if not st.session_state.token:
+    token = st.session_state.token
+    if not token:
         return ANONIMO
-    identidad = SERVICIOS.autenticador.identificar(st.session_state.token)
-    return identidad or ANONIMO
+    if st.session_state.get("identificado_con") != token:
+        st.session_state.identidad = SERVICIOS.autenticador.identificar(token)
+        st.session_state.identificado_con = token
+    return st.session_state.identidad or ANONIMO
+
+
+def _papel(yo: Identidad) -> str:
+    """Cómo se le llama a quien entró.
+
+    `roles_de` sin competición no ve las concesiones de registrador —son por
+    competición—, así que el `else` de antes llamaba «Registrador» también a
+    quien no tenía ninguna concesión.
+    """
+    if Rol.ADMIN in SERVICIOS.politica.roles_de(yo):
+        return "Administrador"
+    if SERVICIOS.politica.es_registrador_en_alguna(yo):
+        return "Registrador"
+    return "Sin permisos asignados"
 
 
 def barra_lateral(yo: Identidad):
@@ -95,10 +121,10 @@ def barra_lateral(yo: Identidad):
                             st.error("Correo o contraseña incorrectos.")
         else:
             st.markdown(f"**★ {yo.email or yo.usuario_id}**")
-            roles = SERVICIOS.politica.roles_de(yo)
-            st.caption("Administrador" if Rol.ADMIN in roles else "Registrador")
+            st.caption(_papel(yo))
             if st.button("Cerrar sesión"):
                 st.session_state.token = None
+                st.session_state.identificado_con = None
                 st.rerun()
 
         st.markdown("---")

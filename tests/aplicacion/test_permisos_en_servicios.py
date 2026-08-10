@@ -304,6 +304,23 @@ class TestPanelDeRegistradores:
         registradores = servicios["registradores"].de_competicion("c1")
         assert [c.usuario_id for c in registradores] == ["registrador"]
 
+    def test_los_lista_por_su_correo(self, servicios):
+        """El panel concede por correo y listaba por id, así que mostraba UUID
+        crudos: no había forma de saber a quién se le revocaba el permiso."""
+        crear_liga(servicios, inscritos=1)
+        registradores = servicios["registradores"].de_competicion("c1")
+        assert [c.etiqueta for c in registradores] == ["profe@itc.edu.co"]
+
+    def test_sin_correo_conocido_queda_el_id(self, servicios, repos):
+        """Una concesión sobrevive a su usuario el tiempo que tarde el borrado
+        en cascada, y el panel tiene que poder pintar esa fila igual."""
+        from itc_deporte.aplicacion.permisos import Concesion, Rol
+
+        crear_liga(servicios, inscritos=1)
+        repos["concesiones"].otorgar(Concesion("fantasma", Rol.REGISTRADOR, "c1"))
+        etiquetas = [c.etiqueta for c in servicios["registradores"].de_competicion("c1")]
+        assert "fantasma" in etiquetas
+
     def test_un_registrador_no_reparte_permisos(self, servicios):
         """Ni siquiera en su propia competición."""
         crear_liga(servicios, inscritos=1)
