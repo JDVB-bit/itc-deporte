@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime as dt
 import unicodedata
+from dataclasses import replace
 
 import streamlit as st
 
@@ -18,10 +19,16 @@ from ..aplicacion.permisos import Accion, Identidad
 from ..domain.calendario import Calendario
 from ..domain.competicion import (
     Competicion,
-    Deporte,
     EstadoCompeticion,
     FaseDeGrupos,
     FaseEliminatoria,
+)
+from ..domain.reglas.catalogo import (
+    DEPORTES,
+    PUNTUACIONES,
+    DeporteDelCatalogo,
+    crear_puntuacion,
+    parametros_de,
 )
 from ..domain.reglas.fixture import ConfigFixture
 from ..domain.enfrentamiento import Marcador
@@ -385,6 +392,98 @@ def _identificador(nombre: str, temporada: str) -> str:
     return "-".join(p for p in limpio.split("-") if p) or "competicion"
 
 
+#: Cómo se llaman en pantalla los parámetros de una puntuación. Las claves son
+#: los campos de las reglas de `domain/reglas/puntuacion.py`; una que no esté
+#: aquí se muestra con su propio nombre, así que registrar una regla nueva no
+#: obliga a tocar esto para que funcione.
+ETIQUETAS_DE_REGLA = {
+    "victoria": "Puntos por victoria",
+    "empate": "Puntos por empate",
+    "derrota": "Puntos por derrota",
+    "victoria_ajustada": "Victoria ajustada (p. ej. 3-2)",
+    "derrota_ajustada": "Derrota ajustada (p. ej. 2-3)",
+    "umbral_ajustado": "Sets del perdedor para considerarlo ajustado",
+}
+
+TITULOS_DE_PUNTUACION = {
+    "victoria_derrota": "Por victoria, empate y derrota",
+    "por_sets": "Por sets, sin empate posible",
+}
+
+#: La opción «➕ Otro…» del selector de deporte.
+#:
+#: Es un valor del catálogo y no `None` por dos motivos: el selector lo trata
+#: como a cualquier otro deporte —de ahí que el formulario no tenga que
+#: distinguir dos formas—, y `None` no se puede seleccionar desde `AppTest`,
+#: así que con él este camino no era comprobable.
+A_MEDIDA = DeporteDelCatalogo("a-medida", "el deporte nuevo", "🏅")
+
+
+def _elegir_deporte() -> tuple[DeporteDelCatalogo, str, str]:
+    """El deporte, fuera del formulario a propósito.
+
+    Dentro de `st.form` cambiar un widget no redibuja nada hasta enviar. Con el
+    selector dentro, elegir voleibol no mostraba sus reglas —ni «➕ Otro…» sus
+    campos— hasta después de haber intentado crear la competición, y como en ese
+    momento los campos nacían vacíos, el primer intento siempre fallaba.
+
+    Devuelve además lo escrito para el deporte a medida, que solo se valida al
+    enviar.
+    """
+    catalogo = st.selectbox(
+        "Deporte",
+        [*DEPORTES.values(), A_MEDIDA],
+        format_func=lambda d: (
+            "➕ Otro…" if d.id == A_MEDIDA.id else f"{d.icono} {d.nombre}"
+        ),
+        key="nc-deporte",
+    )
+    if catalogo.id != A_MEDIDA.id:
+        return catalogo, "", ""
+
+    columnas = st.columns([3, 1])
+    nombre = columnas[0].text_input(
+        "Nombre del deporte", placeholder="Balonmano", key="nc-deporte-nombre"
+    )
+    icono = columnas[1].text_input(
+        "Icono", value="🏅", max_chars=2, key="nc-deporte-icono"
+    )
+    tipo = st.selectbox(
+        "Sistema de puntuación",
+        sorted(PUNTUACIONES),
+        format_func=lambda t: TITULOS_DE_PUNTUACION.get(t, t),
+        key="nc-deporte-puntuacion",
+    )
+    # El id y el nombre se rehacen al enviar, que es cuando se sabe si lo
+    # escrito sirve. Construir aquí un `Deporte` con el nombre a medias haría
+    # saltar la validación del dominio en cada pulsación.
+    return replace(catalogo, puntuacion=tipo), nombre, icono
+
+
+def _puntos_ajustables(catalogo: DeporteDelCatalogo) -> dict[str, int]:
+    """Un campo por parámetro de la puntuación del deporte.
+
+    Se derivan de la propia regla con `parametros_de`, así que una puntuación
+    nueva en el catálogo aparece aquí con sus campos sin tocar la interfaz.
+
+    La clave incluye el deporte para que cambiar de uno a otro traiga sus
+    valores y no los del anterior: microfútbol y baloncesto usan la misma regla
+    con distintos números.
+    """
+    por_defecto = parametros_de(catalogo.puntuacion_por_defecto())
+    return {
+        clave: int(
+            st.number_input(
+                ETIQUETAS_DE_REGLA.get(clave, clave),
+                value=int(valor),
+                step=1,
+                key=f"nc-regla-{catalogo.id}-{clave}",
+            )
+        )
+        for clave, valor in por_defecto.items()
+    }
+
+
 def nueva_competicion(servicios, actor: Identidad) -> None:
     """Crear una competición: el camino que no existía.
 
@@ -395,29 +494,28 @@ def nueva_competicion(servicios, actor: Identidad) -> None:
 
     Las fases se piden aquí porque `crear` recibe la competición entera y no
     hay operación para añadirlas después.
+
+    Las **reglas** se piden aquí por el mismo motivo: no hay operación para
+    cambiarlas después, y sin este formulario toda competición nacía con el
+    3/1/0 del fútbol aunque fuera de voleibol.
     """
     if not servicios.politica.puede(actor, Accion.CREAR_COMPETICION):
         return
 
     tema.seccion("Nueva competición")
-    deportes = {c.deporte.id: c.deporte for c in servicios.competiciones.listar()}
+    catalogo, deporte_nombre, deporte_icono = _elegir_deporte()
+    a_medida = catalogo.id == A_MEDIDA.id
+
     with st.form("nueva-competicion"):
         nombre = st.text_input("Nombre", placeholder="Intercursos — Microfútbol")
         temporada = st.text_input("Temporada", value=str(dt.date.today().year))
 
-        if deportes:
-            opciones = [*deportes.values(), None]
-            deporte = st.selectbox(
-                "Deporte",
-                opciones,
-                format_func=lambda d: f"{d.icono} {d.nombre}" if d else "➕ Otro…",
-            )
-        else:
-            deporte = None
-        if deporte is None:
-            columnas = st.columns([3, 1])
-            deporte_nombre = columnas[0].text_input("Deporte", placeholder="Microfútbol")
-            deporte_icono = columnas[1].text_input("Icono", value="🏅", max_chars=2)
+        st.caption(
+            f"Reglas de {catalogo.nombre}. Se guardan con la competición y son "
+            "las que ordenan su tabla."
+        )
+        puntos = _puntos_ajustables(catalogo)
+        st.caption("Desempate: " + " → ".join(catalogo.desempate).replace("_", " "))
 
         st.caption("Fases. Una competición sin fases se crea igual, pero no se puede sortear.")
         hay_grupos = st.checkbox("Fase de grupos", value=True)
@@ -443,12 +541,15 @@ def nueva_competicion(servicios, actor: Identidad) -> None:
         if not nombre.strip():
             st.warning("La competición necesita un nombre.")
             return
-        if deporte is None:
+        if a_medida:
             if not deporte_nombre.strip():
-                st.warning("Elige un deporte o escribe uno nuevo.")
+                st.warning("Escribe el nombre del deporte.")
                 return
-            deporte = Deporte(
-                _identificador(deporte_nombre, ""), deporte_nombre.strip(), deporte_icono
+            catalogo = replace(
+                catalogo,
+                id=_identificador(deporte_nombre, ""),
+                nombre=deporte_nombre.strip(),
+                icono=deporte_icono or "🏅",
             )
 
         id_ = _identificador(nombre, temporada)
@@ -474,19 +575,25 @@ def nueva_competicion(servicios, actor: Identidad) -> None:
                     cupos=int(cupos),
                 )
             )
-        _ejecutar(
-            servicios.competiciones.crear,
-            actor,
-            Competicion(
-                id=id_,
-                nombre=nombre.strip(),
-                deporte=deporte,
-                temporada=temporada.strip() or None,
-                fases=tuple(fases),
-                calendario=Calendario(dia_de_la_semana=int(dia), hora=hora),
-            ),
-            exito=f"Competición {nombre.strip()!r} creada.",
-        )
+
+        def dar_de_alta() -> None:
+            """Armar las reglas puede fallar —un 1/2/0 no es puntuación válida—,
+            así que va dentro de lo que `_ejecutar` vigila."""
+            reglas = catalogo.reglas(crear_puntuacion(catalogo.puntuacion, puntos))
+            servicios.competiciones.crear(
+                actor,
+                Competicion(
+                    id=id_,
+                    nombre=nombre.strip(),
+                    deporte=catalogo.deporte(),
+                    temporada=temporada.strip() or None,
+                    fases=tuple(fases),
+                    reglas=reglas,
+                    calendario=Calendario(dia_de_la_semana=int(dia), hora=hora),
+                ),
+            )
+
+        _ejecutar(dar_de_alta, exito=f"Competición {nombre.strip()!r} creada.")
 
 
 def estado_de_competicion(servicios, competicion, actor: Identidad) -> None:
