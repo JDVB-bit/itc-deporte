@@ -17,9 +17,11 @@ from __future__ import annotations
 from typing import Protocol, Sequence, runtime_checkable
 
 from ..domain.competicion import Competicion
+from ..domain.division import Division
 from ..domain.enfrentamiento import Enfrentamiento
 from ..domain.identidades import (
     CompeticionId,
+    DivisionId,
     EnfrentamientoId,
     FaseId,
     ParticipanteId,
@@ -50,6 +52,21 @@ class RepositorioDeParticipantes(Protocol):
     def guardar(self, participante: Participante) -> None: ...
 
     def eliminar(self, participante_id: ParticipanteId) -> None: ...
+
+
+@runtime_checkable
+class RepositorioDeDivisiones(Protocol):
+    """Existe porque `participantes.division_id` referencia esta tabla por FK:
+    guardar un participante con una división que no está aquí todavía revienta
+    contra Supabase, aunque el repositorio en memoria lo tolere."""
+
+    def obtener(
+        self, competicion_id: CompeticionId, division_id: DivisionId
+    ) -> Division | None: ...
+
+    def de_competicion(self, competicion_id: CompeticionId) -> tuple[Division, ...]: ...
+
+    def guardar(self, competicion_id: CompeticionId, division: Division) -> None: ...
 
 
 @runtime_checkable

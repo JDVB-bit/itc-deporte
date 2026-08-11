@@ -1,4 +1,4 @@
-streamlit>=1.35.0
+streamlit>=1.37.0
 supabase>=2.0.0
 
 # Llega con supabase, pero el sistema lo importa directamente: el transporte

@@ -391,7 +391,7 @@ class TestInscribir:
         app = abrir(como=muestra.ADMIN)
         antes = len(app.dataframe[1].value)
         app = self._inscribir(app, "Equipo Nuevo")
-        assert len(app.dataframe[1].value) == antes + 1
+        assert len(app.dataframe[0].value) == antes + 1
 
     def test_un_nombre_repetido_se_rechaza_con_su_motivo(self, liga):
         app = self._inscribir(abrir(como=muestra.ADMIN), "Los Tigres")

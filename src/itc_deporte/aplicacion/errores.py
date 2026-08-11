@@ -18,3 +18,6 @@ class NoEncontrado(ErrorDeAplicacion, LookupError):
 
 class OperacionInvalida(ErrorDeAplicacion, ValueError):
     """La operación no procede con el estado actual."""
+    
+class ErrorDeInfraestructura(ErrorDeAplicacion, RuntimeError):
+    """Un adaptador externo (red, base de datos, proveedor de identidad) falló."""

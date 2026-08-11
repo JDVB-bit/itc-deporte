@@ -15,9 +15,11 @@ from __future__ import annotations
 from typing import Iterable, Sequence
 
 from ..domain.competicion import Competicion
+from ..domain.division import Division
 from ..domain.enfrentamiento import Enfrentamiento
 from ..domain.identidades import (
     CompeticionId,
+    DivisionId,
     EnfrentamientoId,
     FaseId,
     ParticipanteId,
@@ -88,3 +90,24 @@ class EnfrentamientosEnMemoria:
     def eliminar_de_fase(self, fase_id: FaseId) -> None:
         self._por_fase.pop(fase_id, None)
 
+
+class DivisionesEnMemoria:
+    """Existe porque `participantes.division_id` referencia esta tabla por FK
+    en Supabase: guardar un participante con una división que no está aquí
+    todavía revienta contra la base real, aunque este doble lo tolere."""
+
+    def __init__(self) -> None:
+        self._por_clave: dict[tuple[CompeticionId, DivisionId], Division] = {}
+
+    def obtener(
+        self, competicion_id: CompeticionId, division_id: DivisionId
+    ) -> Division | None:
+        return self._por_clave.get((competicion_id, division_id))
+
+    def de_competicion(self, competicion_id: CompeticionId) -> tuple[Division, ...]:
+        return tuple(
+            d for (c, _), d in self._por_clave.items() if c == competicion_id
+        )
+
+    def guardar(self, competicion_id: CompeticionId, division: Division) -> None:
+        self._por_clave[(competicion_id, division.id)] = division

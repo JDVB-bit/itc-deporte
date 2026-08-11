@@ -9,7 +9,6 @@ from itc_deporte.infraestructura.supabase import ESQUEMA
 
 sqlglot = pytest.importorskip("sqlglot")
 
-
 @pytest.fixture(scope="module")
 def sentencias():
     return sqlglot.parse(ESQUEMA.read_text(encoding="utf-8"), dialect="postgres")
@@ -67,3 +66,15 @@ def test_el_sql_para_pegar_esta_al_dia():
     contenido = (raiz / "docs" / "PASO_2.sql").read_text(encoding="utf-8")
     assert ESQUEMA.read_text(encoding="utf-8") in contenido
     assert PERMISOS.read_text(encoding="utf-8") in contenido
+
+def test_el_check_de_enfrentamientos_admite_dos_nulos(sentencias):
+    """Una casilla de cuadro sin resolver es (NULL, NULL), y eso debe ser
+    válido: es el estado antes de que la ronda anterior se juegue.
+    `IS DISTINCT FROM` lo rechazaba porque NULL IS DISTINCT FROM NULL es
+    false en Postgres."""
+    enfrentamientos = next(
+        s for s in sentencias
+        if s.key == "create" and s.kind == "TABLE" and s.this.this.name == "enfrentamientos"
+    )
+    sql_tabla = enfrentamientos.sql(dialect="postgres")
+    assert "is distinct from" not in sql_tabla.lower()

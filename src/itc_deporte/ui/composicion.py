@@ -220,6 +220,7 @@ def _sobre_supabase(
     from ..infraestructura.supabase.repositorios import (
         CompeticionesSupabase,
         ConcesionesSupabase,
+        DivisionesSupabase,
         EnfrentamientosSupabase,
         ParticipantesSupabase,
     )
