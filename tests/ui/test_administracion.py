@@ -14,6 +14,7 @@ encuentra un despliegue nuevo.
 from __future__ import annotations
 
 import pytest
+from pathlib import Path
 
 AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 
@@ -27,6 +28,8 @@ from itc_deporte.infraestructura.autenticacion import ConcesionesEnMemoria
 ADMIN = muestra.ADMIN
 MIRON = muestra.MIRON
 PROFE = muestra.PROFE
+
+APP_PATH = str(Path(__file__).resolve().parents[2] / "app.py")
 
 
 @pytest.fixture
@@ -51,7 +54,7 @@ def base_vacia(montar):
 
 
 def _abrir(como=None):
-    app = AppTest.from_file("app.py", default_timeout=60).run()
+    app = AppTest.from_file(APP_PATH, default_timeout=60).run()
     if como is None:
         return app
     app.sidebar.text_input[0].set_value(como.email)

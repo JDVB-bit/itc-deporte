@@ -14,10 +14,13 @@ from __future__ import annotations
 
 import httpx
 import pytest
+from pathlib import Path
 
 AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 
 import sistema as muestra
+
+APP_PATH = str(Path(__file__).resolve().parents[2] / "app.py")
 
 
 @pytest.fixture
@@ -28,7 +31,7 @@ def liga(montar):
 
 def abrir(como=None):
     """Abre la aplicación; con `como`, entra con ese correo."""
-    app = AppTest.from_file("app.py", default_timeout=60).run()
+    app = AppTest.from_file(APP_PATH, default_timeout=60).run()
     if como is None:
         return app
     app.sidebar.text_input[0].set_value(como.email)
@@ -99,12 +102,12 @@ class TestSinCredencialesNoArranca:
 
     def test_la_pagina_lo_explica_en_vez_de_reventar(self, sin_credenciales):
         """`app.py` atrapa `SistemaSinPreparar` y para con un mensaje."""
-        app = AppTest.from_file("app.py", default_timeout=60).run()
+        app = AppTest.from_file(APP_PATH, default_timeout=60).run()
         assert not app.exception
         assert any("SUPABASE" in e.value for e in app.error)
 
     def test_y_no_ofrece_ninguna_manera_de_entrar(self, sin_credenciales):
-        app = AppTest.from_file("app.py", default_timeout=60).run()
+        app = AppTest.from_file(APP_PATH, default_timeout=60).run()
         assert not app.button
 
 
@@ -257,7 +260,7 @@ class TestUnFalloDeRedNoTumbaLaPagina:
         sistema.competiciones.listar = explotar
         montar(sistema)
 
-        app = AppTest.from_file("app.py", default_timeout=60).run()
+        app = AppTest.from_file(APP_PATH, default_timeout=60).run()
         assert not app.exception, "la excepción llegó a la pantalla"
         assert any("conexión" in e.value for e in app.error)
         assert any("Reintentar" in b.label for b in app.button)
