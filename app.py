@@ -4,8 +4,7 @@ Streamlit como adaptador: monta los servicios, muestra lo que devuelven y les
 pide lo que el usuario quiere hacer. No comprueba permisos, no calcula tablas y
 no arma calendarios; de eso se encarga `itc_deporte.aplicacion`.
 
-Sin credenciales de Supabase arranca sobre repositorios en memoria con datos de
-muestra, lo que permite ver la aplicación funcionando sin tocar la red.
+Sin las credenciales de Supabase no arranca, y dice cuál falta.
 """
 
 from __future__ import annotations
@@ -15,7 +14,7 @@ import streamlit as st
 from itc_deporte.aplicacion.permisos import ANONIMO, Accion, Identidad, Rol
 from itc_deporte.domain.competicion import FaseDeGrupos, FaseEliminatoria
 from itc_deporte.ui import construir, tema, vistas
-from itc_deporte.ui.composicion import PAPELES_DE_DEMOSTRACION, BaseSinPreparar
+from itc_deporte.ui.composicion import ERRORES_DE_RED, SistemaSinPreparar
 
 st.set_page_config(
     page_title="ITC Deportes",
@@ -27,26 +26,53 @@ for clave, valor in [("tema", "oscuro"), ("token", None)]:
     st.session_state.setdefault(clave, valor)
 
 
-@st.cache_resource
-def servicios():
-    """Una sola composición por proceso.
+@st.cache_resource(max_entries=16, ttl=3600, show_spinner=False)
+def servicios(token: str | None):
+    """Una composición por sesión, no una por proceso.
 
-    Solo se cae a la demostración cuando de verdad no hay credenciales. Si las
-    hay y algo falla, se propaga: mostrar datos de muestra con aspecto de reales
-    sería peor que no arrancar.
+    El token forma parte de la clave a propósito: el cliente de datos lleva
+    dentro el JWT de quien mira, así que una composición compartida haría que
+    dos personas escribieran con los permisos de la que llegó primero. Ver
+    `composicion._sobre_supabase`.
+
+    Si algo falla, se propaga y la página lo dice: arrancar sobre otra cosa
+    cuando falta un secreto o la base no responde sería mostrar competiciones
+    inventadas con aspecto de reales, que es peor que no arrancar.
     """
     try:
         secretos = st.secrets
     except Exception:
         secretos = None
-    return construir(secretos)
+    return construir(secretos, token=token)
+
+
+def _sin_conexion(error: Exception) -> None:
+    """Lo dice y ofrece reintentar, en vez de dejar una traza en pantalla.
+
+    El transporte ya reintenta los fallos de red por su cuenta, así que llegar
+    aquí significa que la conexión está caída de verdad. Nada queda a medias:
+    todas las escrituras del sistema son idempotentes, de modo que repetir la
+    operación es inocuo aunque la anterior sí hubiera llegado.
+    """
+    st.error(
+        "Se perdió la conexión con la base de datos.\n\n"
+        f"Detalle: {error}",
+        icon="🔌",
+    )
+    if st.button("Reintentar"):
+        st.rerun()
+    st.stop()
 
 
 try:
-    SERVICIOS = servicios()
-except BaseSinPreparar as error:
+    SERVICIOS = servicios(st.session_state.token)
+except SistemaSinPreparar as error:
     st.error(str(error), icon="🗄️")
     st.stop()
+except ERRORES_DE_RED as error:
+    # `st.cache_resource` no guarda lo que lanza, así que reintentar vuelve a
+    # componer de cero.
+    _sin_conexion(error)
 
 
 def actor() -> Identidad:
@@ -55,42 +81,37 @@ def actor() -> Identidad:
     Lo que se guarda es el token, no el id de usuario: es lo único que
     `identificar` acepta. Guardar el id hacía que Supabase no reconociera a
     nadie y todo el mundo navegara como visitante.
+
+    Se resuelve una vez por token y no en cada recarga. Streamlit reejecuta el
+    guion entero ante cualquier interacción —abrir una pestaña, escribir en un
+    campo—, y así cada una de ellas costaba una llamada de red a Supabase solo
+    para volver a preguntar quién es el mismo de siempre.
+
+    Recordarlo no alarga la sesión: el mismo JWT viaja al cliente de datos, y
+    ahí Postgres lo valida en cada consulta. Uno caducado deja de servir para
+    leer o escribir aunque esta caché siga recordando su nombre.
     """
-    if not st.session_state.token:
+    token = st.session_state.token
+    if not token:
         return ANONIMO
-    identidad = SERVICIOS.autenticador.identificar(st.session_state.token)
-    return identidad or ANONIMO
+    if st.session_state.get("identificado_con") != token:
+        st.session_state.identidad = SERVICIOS.autenticador.identificar(token)
+        st.session_state.identificado_con = token
+    return st.session_state.identidad or ANONIMO
 
 
-def _selector_de_papel(yo: Identidad) -> None:
-    """En la demostración se puede mirar el sistema desde cada papel.
+def _papel(yo: Identidad) -> str:
+    """Cómo se le llama a quien entró.
 
-    No es una pantalla de registro: el sistema no tiene registro a propósito.
-    Un visitante no necesita cuenta, y las cuentas de quien administra o
-    registra se conceden, no se piden. Esto existe solo para poder probar la
-    aplicación sin dar de alta a nadie.
+    `roles_de` sin competición no ve las concesiones de registrador —son por
+    competición—, así que el `else` de antes llamaba «Registrador» también a
+    quien no tenía ninguna concesión.
     """
-    st.warning(
-        "**Modo demostración.** Los datos son de muestra y nada se guarda.",
-        icon="⚠️",
-    )
-    st.caption("Pruébalo desde cada papel:")
-    for usuario_id, correo, etiqueta, explicacion in PAPELES_DE_DEMOSTRACION:
-        soy_yo = (yo.usuario_id if yo is not ANONIMO else None) == usuario_id
-        if st.button(
-            f"{'● ' if soy_yo else ''}{etiqueta}",
-            key=f"papel-{usuario_id}",
-            width="stretch",
-            disabled=soy_yo,
-            help=explicacion,
-        ):
-            # Por el mismo camino que producción: el papel se toma iniciando
-            # sesión, no escribiendo a mano en el estado.
-            sesion = (
-                SERVICIOS.autenticador.iniciar_sesion(correo, "") if correo else None
-            )
-            st.session_state.token = sesion.token if sesion else None
-            st.rerun()
+    if Rol.ADMIN in SERVICIOS.politica.roles_de(yo):
+        return "Administrador"
+    if SERVICIOS.politica.es_registrador_en_alguna(yo):
+        return "Registrador"
+    return "Sin permisos asignados"
 
 
 def barra_lateral(yo: Identidad):
@@ -101,10 +122,9 @@ def barra_lateral(yo: Identidad):
             st.rerun()
         st.markdown("---")
 
-        if SERVICIOS.es_demostracion:
-            _selector_de_papel(yo)
-            st.markdown("---")
-
+        # No hay pantalla de registro, y es a propósito: un visitante no
+        # necesita cuenta, y las de administrar o registrar se conceden. El
+        # primer admin se crea desde el panel de Supabase (`docs/FASE_7.md`).
         if yo is ANONIMO:
             st.markdown("**👤 Visitante**")
             st.caption("Puedes consultar tablas, calendarios y cuadros.")
@@ -123,10 +143,10 @@ def barra_lateral(yo: Identidad):
                             st.error("Correo o contraseña incorrectos.")
         else:
             st.markdown(f"**★ {yo.email or yo.usuario_id}**")
-            roles = SERVICIOS.politica.roles_de(yo)
-            st.caption("Administrador" if Rol.ADMIN in roles else "Registrador")
+            st.caption(_papel(yo))
             if st.button("Cerrar sesión"):
                 st.session_state.token = None
+                st.session_state.identificado_con = None
                 st.rerun()
 
         st.markdown("---")
@@ -237,31 +257,48 @@ def main() -> None:
 
     pestañas = ["📊 Tabla", "📅 Calendario", "🏆 Cuadro final", "👥 Equipos"]
     administra = SERVICIOS.politica.puede(yo, Accion.SORTEAR, competicion.id)
+    # Crear no depende de la competición abierta, así que va en su propia
+    # pestaña y no dentro de Administrar: un registrador puede crear la suya y
+    # no administra ninguna, de modo que ahí dentro no lo alcanzaba nunca.
+    crea = SERVICIOS.politica.puede(yo, Accion.CREAR_COMPETICION)
     if administra:
         pestañas.append("⚙️ Administrar")
-    abiertas = st.tabs(pestañas)
+    if crea:
+        pestañas.append("➕ Nueva competición")
+    # Por nombre y no por índice: con dos pestañas opcionales, un índice fijo
+    # apunta a otra cosa según quién esté mirando.
+    abiertas = dict(zip(pestañas, st.tabs(pestañas)))
 
-    with abiertas[0]:
+    with abiertas["📊 Tabla"]:
         if grupos:
             vistas.tabla_de_posiciones(SERVICIOS, competicion, grupos)
-    with abiertas[1]:
+    with abiertas["📅 Calendario"]:
         if grupos:
             vistas.calendario(SERVICIOS, competicion, grupos, yo)
-    with abiertas[2]:
+    with abiertas["🏆 Cuadro final"]:
         if eliminatoria:
             vistas.cuadro_final(SERVICIOS, competicion, eliminatoria, yo)
         else:
             st.info("Esta competición no tiene fase eliminatoria.")
-    with abiertas[3]:
+    with abiertas["👥 Equipos"]:
         vistas.participantes(SERVICIOS, competicion, yo)
 
     if administra:
-        with abiertas[4]:
+        with abiertas["⚙️ Administrar"]:
             if grupos:
                 vistas.sorteo(SERVICIOS, competicion, grupos, yo)
             vistas.estado_de_competicion(SERVICIOS, competicion, yo)
             vistas.panel_de_registradores(SERVICIOS, competicion, yo)
+    if crea:
+        with abiertas["➕ Nueva competición"]:
             vistas.nueva_competicion(SERVICIOS, yo)
 
 
-main()
+try:
+    main()
+except ERRORES_DE_RED as error:
+    # Las escrituras las atrapa `vistas._ejecutar`, que puede decirlo junto al
+    # botón que las pidió. Esto es para las **lecturas** —listar competiciones,
+    # calcular la tabla—, que no tienen dónde caerse y se llevaban la página
+    # entera por delante.
+    _sin_conexion(error)

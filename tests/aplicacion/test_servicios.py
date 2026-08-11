@@ -41,6 +41,7 @@ from itc_deporte.domain.competicion import (
     ReglasDeCompeticion,
 )
 from itc_deporte.domain.enfrentamiento import Enfrentamiento, Marcador
+from itc_deporte.domain.errores import ReglaInvalida
 from itc_deporte.domain.reglas.fixture import ConfigFixture
 from itc_deporte.domain.reglas.puntuacion import PorSets
 from itc_deporte.infraestructura.memoria import (
@@ -87,7 +88,7 @@ def servicios(repos, politica):
     )
     return {
         "competiciones": ServicioDeCompeticiones(
-            repos["competiciones"], politica
+            repos["competiciones"], repos["concesiones"], politica
         ),
         "inscripciones": ServicioDeInscripciones(
             repos["competiciones"], repos["participantes"], politica
@@ -99,7 +100,9 @@ def servicios(repos, politica):
             politica,
             azar=random.Random(42),
         ),
-        "resultados": ServicioDeResultados(repos["enfrentamientos"], politica),
+        "resultados": ServicioDeResultados(
+            repos["enfrentamientos"], repos["competiciones"], politica
+        ),
         "clasificacion": clasificacion,
         "cuadro": ServicioDeCuadroFinal(
             repos["competiciones"], repos["enfrentamientos"], clasificacion, politica
@@ -182,6 +185,76 @@ class TestCompeticiones:
         creada = servicios["competiciones"].crear(ADMIN, voley)
         assert creada.deporte.nombre == "Voleyball"
         assert creada.reglas.puntuacion.puntos(Marcador(3, 2)) == (2, 1)
+
+
+class TestUnRegistradorCreaLaSuya:
+    """Su concesión es por competición, así que la que acaba de crear no estaba
+    en ninguna: sin quedarse con ella, podía dar de alta una competición y no
+    poder inscribir a nadie en ella."""
+
+    def test_puede_crearla(self, servicios):
+        creada = servicios["competiciones"].crear(
+            REGISTRADOR, competicion_de_prueba("c9", "La del profe")
+        )
+        assert creada.id == "c9"
+
+    def test_y_queda_como_registrador_de_ella(self, servicios, repos):
+        servicios["competiciones"].crear(
+            REGISTRADOR, competicion_de_prueba("c9", "La del profe")
+        )
+        concesiones = repos["concesiones"].de_competicion("c9")
+        assert [(c.usuario_id, c.rol) for c in concesiones] == [
+            ("registrador", Rol.REGISTRADOR)
+        ]
+
+    def test_asi_que_puede_inscribir_en_ella(self, servicios):
+        servicios["competiciones"].crear(
+            REGISTRADOR, competicion_de_prueba("c9", "La del profe")
+        )
+        inscrito = servicios["inscripciones"].inscribir(
+            REGISTRADOR, "c9", "p1", "Los Tigres"
+        )
+        assert inscrito.competicion_id == "c9"
+
+    def test_pero_no_sortearla(self, servicios):
+        """Crear no arrastra administrar: eso sigue siendo del admin."""
+        servicios["competiciones"].crear(
+            REGISTRADOR, competicion_de_prueba("c9", "La del profe")
+        )
+        for i in range(1, 5):
+            servicios["inscripciones"].inscribir(REGISTRADOR, "c9", f"p{i}", f"E{i}")
+        with pytest.raises(PermisoDenegado):
+            servicios["sorteo"].sortear(REGISTRADOR, "c9", "c9:0", desde=LUNES)
+
+    def test_ni_cambiarle_el_estado(self, servicios):
+        servicios["competiciones"].crear(
+            REGISTRADOR, competicion_de_prueba("c9", "La del profe")
+        )
+        with pytest.raises(PermisoDenegado):
+            servicios["competiciones"].cambiar_estado(
+                REGISTRADOR, "c9", EstadoCompeticion.EN_CURSO
+            )
+
+    def test_al_admin_no_se_le_otorga_nada(self, servicios, repos):
+        """Su rol ya es global, y una concesión de admin con competición está
+        prohibida por el propio tipo."""
+        servicios["competiciones"].crear(ADMIN, competicion_de_prueba("c9"))
+        assert repos["concesiones"].de_competicion("c9") == ()
+
+    def test_quien_no_es_registrador_de_nada_no_puede_crear(self, servicios):
+        with pytest.raises(PermisoDenegado, match="crear_competicion"):
+            servicios["competiciones"].crear(CURIOSO, competicion_de_prueba())
+
+    def test_ni_un_visitante_sin_identificar(self, servicios):
+        with pytest.raises(PermisoDenegado):
+            servicios["competiciones"].crear(ANONIMO, competicion_de_prueba())
+
+    def test_si_falla_el_alta_no_deja_concesion_suelta(self, servicios, repos):
+        """Un id repetido corta antes de guardar; la concesión no debe quedar."""
+        servicios["competiciones"].crear(ADMIN, competicion_de_prueba("c9"))
+        with pytest.raises(OperacionInvalida):
+            servicios["competiciones"].crear(REGISTRADOR, competicion_de_prueba("c9"))
+        assert repos["concesiones"].de_competicion("c9") == ()
 
 
 class TestInscripciones:
@@ -271,7 +344,7 @@ class TestSorteo:
             enfs = EnfrentamientosEnMemoria()
             pol = Politica(ConcesionesEnMemoria([Concesion("admin", Rol.ADMIN)]))
             servicio_comp = ServicioDeCompeticiones(
-                comp, pol
+                comp, ConcesionesEnMemoria(), pol
             )
             servicio_comp.crear(ADMIN, competicion_de_prueba())
             inscripciones = ServicioDeInscripciones(comp, parts, pol)
@@ -342,6 +415,65 @@ class TestResultados:
     def test_rechaza_un_partido_inexistente(self, servicios):
         with pytest.raises(NoEncontrado):
             servicios["resultados"].registrar(ADMIN, "fantasma", Marcador(1, 0))
+
+
+class TestElMarcadorTieneQueCaberEnLasReglas:
+    """El fallo: registrar no consultaba las reglas de la competición.
+
+    Un 2-2 en una competición por sets entraba sin queja, y la excepción
+    saltaba después y en otro sitio —al calcular la tabla, cada vez que alguien
+    abría la pestaña—. Con el dato ya guardado, la página quedaba rota de forma
+    permanente y sin manera de corregirla desde la aplicación.
+    """
+
+    def _partido_de_voley(self, servicios):
+        servicios["competiciones"].crear(
+            ADMIN, competicion_de_prueba(deporte=VOLEIBOL, puntuacion=PorSets())
+        )
+        for i in range(1, 5):
+            servicios["inscripciones"].inscribir(ADMIN, "c1", f"p{i}", f"Equipo {i}")
+        return servicios["sorteo"].sortear(ADMIN, "c1", "c1:0", desde=LUNES)[0]
+
+    def test_un_empate_por_sets_se_rechaza_al_registrar(self, servicios):
+        partido = self._partido_de_voley(servicios)
+        with pytest.raises(ReglaInvalida, match="no puede quedar empatado"):
+            servicios["resultados"].registrar(ADMIN, partido.id, Marcador(2, 2))
+
+    def test_y_no_llega_a_guardarse(self, servicios, repos):
+        partido = self._partido_de_voley(servicios)
+        with pytest.raises(ReglaInvalida):
+            servicios["resultados"].registrar(ADMIN, partido.id, Marcador(2, 2))
+        assert not repos["enfrentamientos"].obtener(partido.id).esta_finalizado
+
+    def test_asi_la_tabla_se_sigue_pudiendo_calcular(self, servicios):
+        """Lo que de verdad se protege: que la pestaña no quede inservible."""
+        partido = self._partido_de_voley(servicios)
+        with pytest.raises(ReglaInvalida):
+            servicios["resultados"].registrar(ADMIN, partido.id, Marcador(2, 2))
+        assert servicios["clasificacion"].de_fase("c1", "c1:0")
+
+    def test_un_resultado_valido_sigue_entrando(self, servicios):
+        partido = self._partido_de_voley(servicios)
+        cerrado = servicios["resultados"].registrar(ADMIN, partido.id, Marcador(3, 2))
+        assert cerrado.esta_finalizado
+
+    def test_en_una_liga_normal_el_empate_es_legitimo(self, servicios):
+        """La comprobación es de la regla, no una prohibición general."""
+        grupos, _ = crear_liga(servicios, inscritos=4)
+        partido = servicios["sorteo"].sortear(ADMIN, "c1", grupos, desde=LUNES)[0]
+        assert servicios["resultados"].registrar(
+            ADMIN, partido.id, Marcador(1, 1)
+        ).esta_finalizado
+
+    def test_el_cuadro_final_lo_comprueba_igual(self, servicios):
+        """Comparte tabla y reglas con la fase de grupos, así que un marcador
+        imposible ahí envenena la misma consulta."""
+        self._partido_de_voley(servicios)
+        for indice, otro in enumerate(servicios["resultados"].de_fase("c1:0")):
+            servicios["resultados"].registrar(ADMIN, otro.id, Marcador(3, indice % 3))
+        servicios["cuadro"].generar(ADMIN, "c1", "c1:1", desde_fase="c1:0")
+        with pytest.raises(ReglaInvalida, match="no puede quedar empatado"):
+            servicios["cuadro"].registrar(ADMIN, "c1", "c1:1", 0, 0, Marcador(1, 1))
 
 
 class TestClasificacion:

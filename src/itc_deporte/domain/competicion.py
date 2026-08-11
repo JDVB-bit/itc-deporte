@@ -17,6 +17,7 @@ from dataclasses import dataclass, replace
 from enum import Enum
 
 from .calendario import Calendario
+from .enfrentamiento import Marcador
 from .errores import ErrorDeDominio
 from .identidades import CompeticionId, FaseId, GrupoId, ParticipanteId
 from .reglas.fixture import ConfigFixture
@@ -186,6 +187,29 @@ class ReglasDeCompeticion:
             raise ErrorDeDominio(
                 "Una competición necesita al menos un criterio de desempate."
             )
+
+    def admite(self, marcador: Marcador) -> bool:
+        """Si la puntuación de esta competición sabe repartir puntos por él."""
+        try:
+            self.puntuacion.puntos(marcador)
+        except ErrorDeDominio:
+            return False
+        return True
+
+    def exigir_que_admita(self, marcador: Marcador) -> None:
+        """Lanza si la puntuación no sabe repartir puntos por ese marcador.
+
+        Se comprueba al **registrar**, que es lo que faltaba. Un 2-2 en una
+        competición por sets se guardaba sin queja, y la excepción saltaba
+        después y en otro sitio: al calcular la tabla, cada vez que alguien
+        abría la pestaña. El dato ya estaba dentro, así que la página quedaba
+        rota de forma permanente y sin manera de corregirla desde la
+        aplicación.
+
+        Se apoya en la propia regla en lugar de en una lista de casos, así que
+        una puntuación nueva del catálogo queda cubierta sin tocar esto.
+        """
+        self.puntuacion.puntos(marcador)
 
 
 @dataclass(frozen=True, slots=True, eq=False)

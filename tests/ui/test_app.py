@@ -1,8 +1,9 @@
 """La interfaz, ejercitada sin navegador.
 
 `AppTest` ejecuta `app.py` de verdad —el mismo script que sirve Streamlit— y
-deja inspeccionar y accionar sus elementos. Como la composición cae en
-repositorios de memoria cuando no hay credenciales, esto corre sin red.
+deja inspeccionar y accionar sus elementos. El sistema sobre el que corre lo
+pone la fixture `montar`, con repositorios en memoria: sin red, y sin que la
+aplicación tenga que traer datos de muestra dentro.
 
 Lo que se comprueba aquí no es el aspecto, sino que la interfaz **pida lo que
 debe**: que un visitante no vea el panel de administración, que iniciar sesión
@@ -11,34 +12,43 @@ lo haga aparecer, y que las acciones lleguen a los servicios.
 
 from __future__ import annotations
 
+import httpx
 import pytest
+from pathlib import Path
 
 AppTest = pytest.importorskip("streamlit.testing.v1").AppTest
 
+import sistema as muestra
 
-def abrir(*, papel: str | None = None):
-    """Abre la app; con `papel` entra desde el selector de la demostración."""
-    app = AppTest.from_file("app.py", default_timeout=60).run()
-    if papel:
-        app = _entrar(app, papel)
-    return app
+APP_PATH = str(Path(__file__).resolve().parents[2] / "app.py")
 
 
-def _entrar(app, papel: str = "Administrador"):
-    boton = next(b for b in app.sidebar.button if papel in b.label)
-    return boton.click().run()
+@pytest.fixture
+def liga(montar):
+    """Dos competiciones, una sorteada y a medio jugar."""
+    return montar(muestra.con_liga_en_marcha())
+
+
+def abrir(como=None):
+    """Abre la aplicación; con `como`, entra con ese correo."""
+    app = AppTest.from_file(APP_PATH, default_timeout=60).run()
+    if como is None:
+        return app
+    app.sidebar.text_input[0].set_value(como.email)
+    app.sidebar.text_input[1].set_value("da-igual")
+    return next(b for b in app.sidebar.button if "Entrar" in b.label).click().run()
 
 
 def etiquetas(pestañas) -> list[str]:
     return [p.label for p in pestañas]
 
 
-def _generar_cuadro() -> str:
+def _generar_cuadro():
     """Entra como admin, genera el cuadro y devuelve lo que quedó pintado.
 
     Recoge markdown y captions: las etiquetas del cuadro usan las dos.
     """
-    app = abrir(papel="Administrador")
+    app = abrir(como=muestra.ADMIN)
     generar = next(b for b in app.button if "Generar cuadro" in b.label)
     app = generar.click().run()
     return " ".join(
@@ -47,174 +57,319 @@ def _generar_cuadro() -> str:
 
 
 class TestArranque:
-    def test_la_aplicacion_no_revienta(self):
+    def test_la_aplicacion_no_revienta(self, liga):
         assert not abrir().exception
 
-    def test_sin_credenciales_avisa_de_que_es_una_demostracion(self):
-        app = abrir()
-        assert any("demostración" in w.value for w in app.sidebar.warning)
+    def test_ofrece_las_competiciones(self, liga):
+        assert len(abrir().sidebar.radio[0].options) == 2
 
-    def test_ofrece_las_competiciones_de_muestra(self):
-        app = abrir()
-        opciones = app.sidebar.radio[0].options
-        assert len(opciones) == 2
+    def test_no_avisa_de_ninguna_demostracion(self, liga):
+        """Ya no la hay: los datos que se ven son los que hay en la base."""
+        assert not any("demostración" in w.value for w in abrir().sidebar.warning)
+
+
+@pytest.fixture
+def sin_credenciales(monkeypatch):
+    """Ni entorno ni secretos.
+
+    Vaciar `st.secrets` no es un detalle: sin eso, estas pruebas pasaban o
+    fallaban según si quien las corre tiene un `.streamlit/secrets.toml` en el
+    proyecto. Una suite que depende de la máquina no dice nada.
+    """
+    import streamlit as st
+
+    for clave in ("SUPABASE_URL", "SUPABASE_KEY", "SUPABASE_ANON_KEY"):
+        monkeypatch.delenv(clave, raising=False)
+    monkeypatch.setattr(st, "secrets", {})
+
+
+class TestSinCredencialesNoArranca:
+    """Antes esto caía en una demostración. Parecía amable y era lo contrario:
+    un despliegue al que se le olvidara un secreto no fallaba, arrancaba con
+    competiciones inventadas y un botón de administrador sin contraseña."""
+
+    def test_falta_de_credenciales_es_un_fallo(self, sin_credenciales):
+        from itc_deporte.ui.composicion import FaltanCredenciales, construir
+
+        with pytest.raises(FaltanCredenciales):
+            construir(None)
+
+    def test_el_mensaje_dice_que_secretos_hacen_falta(self, sin_credenciales):
+        from itc_deporte.ui.composicion import FaltanCredenciales, construir
+
+        with pytest.raises(FaltanCredenciales, match="SUPABASE_ANON_KEY"):
+            construir(None)
+
+    def test_la_pagina_lo_explica_en_vez_de_reventar(self, sin_credenciales):
+        """`app.py` atrapa `SistemaSinPreparar` y para con un mensaje."""
+        app = AppTest.from_file(APP_PATH, default_timeout=60).run()
+        assert not app.exception
+        assert any("SUPABASE" in e.value for e in app.error)
+
+    def test_y_no_ofrece_ninguna_manera_de_entrar(self, sin_credenciales):
+        app = AppTest.from_file(APP_PATH, default_timeout=60).run()
+        assert not app.button
+
+
+class TestNoSeDisfrazaDeProduccion:
+    """Un fallo visible es mejor que datos inventados con aspecto de reales.
+
+    Se comprueba contra un repositorio que falla, y no contra una URL
+    inventada: apuntar a un dominio que no existe prueba el DNS de quien corre
+    la suite, no el comportamiento del sistema —y desde que los fallos de red
+    se distinguen de los de esquema, ni siquiera prueba este camino.
+    """
+
+    def _componer(self, fallo: Exception):
+        from itc_deporte.ui.composicion import _exigir_esquema
+
+        class Repositorio:
+            def listar(self):
+                raise fallo
+
+        return lambda: _exigir_esquema(Repositorio())
+
+    def test_una_base_sin_esquema_falla_en_vez_de_fingir(self):
+        """El defecto que tenía: un `except Exception` alrededor de la
+        composición hacía que un Supabase mal montado se presentara como una
+        demostración, y el usuario veía competiciones inventadas."""
+        from itc_deporte.ui.composicion import BaseSinPreparar
+
+        with pytest.raises(BaseSinPreparar):
+            self._componer(Exception('relation "competiciones" does not exist'))()
+
+    def test_el_mensaje_dice_que_falta_aplicar_el_esquema(self):
+        from itc_deporte.ui.composicion import BaseSinPreparar
+
+        with pytest.raises(BaseSinPreparar, match="PASO_2.sql"):
+            self._componer(Exception("no existe la tabla"))()
+
+    def test_una_red_caida_no_se_confunde_con_un_esquema_sin_aplicar(self):
+        """Mandar a aplicar el esquema a quien solo se quedó sin conexión es
+        peor que no decir nada: manda a tocar la base de producción."""
+        with pytest.raises(httpx.TransportError):
+            self._componer(httpx.ConnectError("getaddrinfo failed"))()
 
 
 class TestLoQueVeUnVisitante:
-    def test_puede_consultar_sin_identificarse(self):
+    def test_puede_consultar_sin_identificarse(self, liga):
         app = abrir()
         assert "📊 Tabla" in etiquetas(app.tabs)
         assert "🏆 Cuadro final" in etiquetas(app.tabs)
 
-    def test_no_ve_el_panel_de_administracion(self):
+    def test_no_ve_el_panel_de_administracion(self, liga):
         """La pestaña no está porque no puede administrar, no al revés."""
         assert "⚙️ Administrar" not in etiquetas(abrir().tabs)
 
-    def test_la_tabla_de_posiciones_se_muestra(self):
-        app = abrir()
-        assert any("itc-tabla" in m.value for m in app.markdown), (
-            "no se pintó ninguna tabla"
-        )
+    def test_ni_la_de_crear_competiciones(self, liga):
+        assert "➕ Nueva competición" not in etiquetas(abrir().tabs)
 
-    def test_el_cuadro_sin_generar_lo_dice(self):
-        app = abrir()
-        assert any("no se ha generado" in i.value for i in app.info)
+    def test_la_tabla_de_posiciones_se_muestra(self, liga):
+        assert abrir().dataframe, "no se pintó ninguna tabla"
+
+    def test_el_cuadro_sin_generar_lo_dice(self, liga):
+        assert any("no se ha generado" in i.value for i in abrir().info)
 
 
 class TestAcceso:
-    def test_entrar_identifica_al_administrador(self):
-        app = abrir(papel="Administrador")
+    def test_entrar_identifica_al_administrador(self, liga):
+        app = abrir(como=muestra.ADMIN)
         assert any("admin@itc.edu.co" in m.value for m in app.sidebar.markdown)
 
-    def test_y_entonces_aparece_la_administracion(self):
-        assert "⚙️ Administrar" in etiquetas(abrir(papel="Administrador").tabs)
+    def test_y_entonces_aparece_la_administracion(self, liga):
+        assert "⚙️ Administrar" in etiquetas(abrir(como=muestra.ADMIN).tabs)
 
-    def test_salir_devuelve_al_modo_visitante(self):
-        app = abrir(papel="Administrador")
+    def test_salir_devuelve_al_modo_visitante(self, liga):
+        app = abrir(como=muestra.ADMIN)
         salir = next(b for b in app.sidebar.button if "Cerrar" in b.label)
         app = salir.click().run()
         assert "⚙️ Administrar" not in etiquetas(app.tabs)
+
+    def test_un_correo_desconocido_lo_dice(self, liga):
+        app = abrir()
+        app.sidebar.text_input[0].set_value("nadie@itc.edu.co")
+        app = next(b for b in app.sidebar.button if "Entrar" in b.label).click().run()
+        assert any("incorrect" in e.value.lower() for e in app.error)
+
+    def test_el_formulario_pide_correo_y_contrasena(self, liga):
+        """Un profesor entra con su correo, no con un identificador interno."""
+        campos = [c.label for c in abrir().sidebar.text_input]
+        assert "Correo" in campos
+        assert "Contraseña" in campos
+
+
+class TestElPapelQueSeAnuncia:
+    """La barra decía «Registrador» a todo el que no fuera admin, incluido
+    quien no tiene ninguna concesión: `roles_de` sin competición no ve las de
+    registrador, que son por competición."""
+
+    def _caption(self, app) -> str:
+        return " ".join(c.value for c in app.sidebar.caption)
+
+    def test_al_administrador_lo_llama_administrador(self, liga):
+        assert "Administrador" in self._caption(abrir(como=muestra.ADMIN))
+
+    def test_al_registrador_registrador(self, liga):
+        assert "Registrador" in self._caption(abrir(como=muestra.PROFE))
+
+    def test_a_quien_no_tiene_concesiones_no_lo_asciende(self, liga):
+        texto = self._caption(abrir(como=muestra.MIRON))
+        assert "Registrador" not in texto
+        assert "Sin permisos" in texto
+
+
+class TestSoloSeIdentificaUnaVez:
+    """Streamlit reejecuta el guion entero ante cualquier interacción, y cada
+    una costaba una llamada de red para preguntar quién es el mismo de
+    siempre."""
+
+    def test_no_se_vuelve_a_preguntar_en_cada_recarga(self, montar):
+        sistema = montar(muestra.con_liga_en_marcha())
+        autenticador = sistema.servicios.autenticador
+        veces = []
+        original = autenticador.identificar
+
+        def contando(token):
+            veces.append(token)
+            return original(token)
+
+        autenticador.identificar = contando
+        app = abrir(como=muestra.ADMIN)
+        antes = len(veces)
+        app.sidebar.radio[0].set_value(app.sidebar.radio[0].options[1]).run()
+        assert len(veces) == antes, "se volvió a identificar sin cambiar de sesión"
+
+
+class TestUnFalloDeRedNoTumbaLaPagina:
+    """El fallo que apareció probando: `httpx.ReadError [WinError 10035]` en
+    mitad de una sesión, y la página entera reemplazada por una traza.
+
+    Venía de una conexión muerta del pool. El transporte ya la reintenta, así
+    que llegar hasta la interfaz significa red caída de verdad —y entonces hay
+    que decirlo, no volcar httpx en pantalla.
+    """
+
+    def test_una_lectura_caida_lo_dice_y_ofrece_reintentar(self, montar):
+        """Las lecturas no tenían dónde caerse: `listar()` se llama al pintar
+        la barra lateral, antes de que ninguna vista pueda atrapar nada."""
+        sistema = muestra.con_liga_en_marcha()
+
+        def explotar():
+            raise httpx.ReadError("[WinError 10035]")
+
+        sistema.competiciones.listar = explotar
+        montar(sistema)
+
+        app = AppTest.from_file(APP_PATH, default_timeout=60).run()
+        assert not app.exception, "la excepción llegó a la pantalla"
+        assert any("conexión" in e.value for e in app.error)
+        assert any("Reintentar" in b.label for b in app.button)
+
+    def test_una_escritura_caida_avisa_junto_al_boton(self, montar):
+        """Estas sí las atrapa `vistas._ejecutar`, que puede decirlo donde se
+        pidió la acción en vez de tirar la página."""
+        sistema = muestra.con_liga_en_marcha()
+
+        def explotar(_participante):
+            raise httpx.ConnectError("sin red")
+
+        sistema.participantes.guardar = explotar
+        montar(sistema)
+
+        app = abrir(como=muestra.ADMIN)
+        app.text_input[0].set_value("Equipo Nuevo")
+        app = next(b for b in app.button if b.label == "Inscribir").click().run()
+        assert not app.exception
+        assert any("conexión" in e.value for e in app.error)
+
+    def test_y_la_pagina_sigue_en_pie(self, montar):
+        """No es una pantalla de error: la barra lateral sigue ahí."""
+        sistema = muestra.con_liga_en_marcha()
+
+        def explotar(_participante):
+            raise httpx.ConnectError("sin red")
+
+        sistema.participantes.guardar = explotar
+        montar(sistema)
+
+        app = abrir(como=muestra.ADMIN)
+        app.text_input[0].set_value("Equipo Nuevo")
+        app = next(b for b in app.button if b.label == "Inscribir").click().run()
+        assert app.sidebar.radio, "se perdió el selector de competición"
+
+
+class TestNoHayRegistro:
+    """El sistema no tiene alta propia a propósito: un visitante no necesita
+    cuenta, y las de administrar o registrar se conceden. El primer admin se
+    crea desde el panel de Supabase."""
+
+    def test_no_se_ofrece_crear_una_cuenta(self, liga):
+        etiquetas_botones = " ".join(b.label.lower() for b in abrir().button)
+        for palabra in ("registrarse", "crear cuenta", "registro", "sign up"):
+            assert palabra not in etiquetas_botones
+
+    def test_ni_un_selector_para_elegir_papel(self, liga):
+        """Lo había en la demostración: cualquiera pulsaba «Administrador»."""
+        etiquetas_botones = [b.label for b in abrir().sidebar.button]
+        assert not any("Administrador" in e for e in etiquetas_botones)
 
 
 class TestElCuadroFinalEstaConectado:
     """Lo que el sistema anterior nunca llegó a mostrar."""
 
-    def test_el_administrador_puede_generarlo(self):
-        app = abrir(papel="Administrador")
-        generar = next(
-            (b for b in app.button if "Generar cuadro" in b.label), None
-        )
+    def test_el_administrador_puede_generarlo(self, liga):
+        app = abrir(como=muestra.ADMIN)
+        generar = next((b for b in app.button if "Generar cuadro" in b.label), None)
         assert generar is not None, "no se ofrece generar el cuadro"
-        app = generar.click().run()
-        assert not app.exception
+        assert not generar.click().run().exception
 
-    def test_una_vez_generado_se_muestra(self):
+    def test_una_vez_generado_se_muestra(self, liga):
         """Las rondas se rotulan en minúsculas; el CSS las pone en mayúsculas."""
         pintado = _generar_cuadro().lower()
         assert "cuartos de final" in pintado
         assert "semifinal" in pintado
         assert "final" in pintado
 
-    def test_nadie_aparece_en_la_final_sin_jugar(self):
+    def test_nadie_aparece_en_la_final_sin_jugar(self, liga):
         """El fallo que se encontró al conectar el cuadro a la interfaz: los
         mejores sembrados llegaban a la final sin disputar su cuartos."""
         pintado = _generar_cuadro().lower()
         desde_la_final = pintado[pintado.rindex(">final<") :]
         assert "por definir" in desde_la_final
 
-    def test_los_byes_de_la_primera_ronda_se_distinguen_de_la_espera(self):
+    def test_los_byes_de_la_primera_ronda_se_distinguen_de_la_espera(self, liga):
         pintado = _generar_cuadro()
         assert "pasa sin jugar" in pintado
         assert "esperando rival" in pintado
 
 
 class TestLosPermisosGobiernanLaInterfaz:
-    def test_un_visitante_no_puede_generar_el_cuadro(self):
-        app = abrir()
-        assert not any("Generar cuadro" in b.label for b in app.button)
+    def test_un_visitante_no_puede_generar_el_cuadro(self, liga):
+        assert not any("Generar cuadro" in b.label for b in abrir().button)
 
-    def test_un_visitante_no_ve_el_formulario_de_inscripcion(self):
+    def test_un_visitante_no_ve_el_formulario_de_inscripcion(self, liga):
         """Inscribir exige permiso; sin él ni siquiera se ofrece."""
-        app = abrir()
-        assert not any("Inscribir" in b.label for b in app.button)
+        assert not any("Inscribir" in b.label for b in abrir().button)
 
-
-class TestNoSeDisfrazaDeProduccion:
-    """Un fallo visible es mejor que datos inventados con aspecto de reales."""
-
-    def test_sin_credenciales_arranca_en_demostracion(self, monkeypatch):
-        from itc_deporte.ui.composicion import construir
-
-        monkeypatch.delenv("SUPABASE_URL", raising=False)
-        monkeypatch.delenv("SUPABASE_KEY", raising=False)
-        assert construir(None).es_demostracion
-
-    def test_con_credenciales_que_no_sirven_falla_en_vez_de_fingir(self, monkeypatch):
-        """El defecto que tenía: un `except Exception` alrededor de la
-        composición hacía que un Supabase caído se presentara como una
-        demostración, y el usuario veía competiciones inventadas."""
-        from itc_deporte.ui.composicion import BaseSinPreparar, construir
-
-        monkeypatch.setenv("SUPABASE_URL", "https://no-existe.supabase.co")
-        monkeypatch.setenv("SUPABASE_KEY", "x" * 200)
-        with pytest.raises(BaseSinPreparar):
-            construir(None)
-
-    def test_el_mensaje_dice_que_falta_aplicar_el_esquema(self, monkeypatch):
-        from itc_deporte.ui.composicion import BaseSinPreparar, construir
-
-        monkeypatch.setenv("SUPABASE_URL", "https://no-existe.supabase.co")
-        monkeypatch.setenv("SUPABASE_KEY", "x" * 200)
-        with pytest.raises(BaseSinPreparar, match="PASO_2.sql"):
-            construir(None)
-
-
-class TestAccesoConCorreo:
-    """Un profesor entra con su correo, no con un identificador interno."""
-
-    def test_el_formulario_pide_correo_y_contrasena(self):
-        app = abrir()
-        etiquetas_campos = [c.label for c in app.text_input]
-        assert "Correo" in etiquetas_campos
-        assert "Contraseña" in etiquetas_campos
-
-    def test_un_correo_conocido_identifica(self):
-        app = abrir()
-        app.text_input[0].set_value("admin@itc.edu.co")
-        app = next(b for b in app.button if b.label == "Entrar").click().run()
-        assert any("admin@itc.edu.co" in m.value for m in app.sidebar.markdown)
-
-    def test_un_correo_desconocido_lo_dice(self):
-        app = abrir()
-        app.text_input[0].set_value("nadie@itc.edu.co")
-        app = next(b for b in app.button if b.label == "Entrar").click().run()
-        assert any("incorrect" in e.value.lower() for e in app.error)
-
-
-class TestSePuedeProbarCadaPapel:
-    """El sistema no tiene registro a propósito —un visitante no necesita
-    cuenta y las de administrar o registrar se conceden—, así que la
-    demostración ofrece los tres papeles para poder probarlo."""
-
-    def test_ofrece_los_tres(self):
-        etiquetas_botones = [b.label for b in abrir().sidebar.button]
-        for papel in ("Administrador", "Registrador", "Visitante"):
-            assert any(papel in e for e in etiquetas_botones), papel
-
-    def test_el_administrador_lo_puede_todo(self):
-        app = abrir(papel="Administrador")
-        assert "⚙️ Administrar" in etiquetas(app.tabs)
-
-    def test_el_registrador_carga_resultados_pero_no_administra(self):
-        app = abrir(papel="Registrador")
+    def test_el_registrador_carga_resultados_pero_no_administra(self, liga):
+        app = abrir(como=muestra.PROFE)
         assert "⚙️ Administrar" not in etiquetas(app.tabs)
         assert any("Inscribir" in b.label for b in app.button)
 
-    def test_el_registrador_no_puede_en_la_competicion_ajena(self):
-        """Su concesión alcanza a Microfútbol, no a Voleyball."""
-        app = abrir(papel="Registrador")
+    def test_el_registrador_no_puede_en_la_competicion_ajena(self, liga):
+        """Su concesión alcanza a Microfútbol, no a Voleibol."""
+        app = abrir(como=muestra.PROFE)
         app.sidebar.radio[0].set_value(app.sidebar.radio[0].options[1]).run()
         assert not any("Inscribir" in b.label for b in app.button)
+
+    def test_quien_no_tiene_concesiones_solo_consulta(self, liga):
+        app = abrir(como=muestra.MIRON)
+        assert etiquetas(app.tabs) == [
+            "📊 Tabla",
+            "📅 Calendario",
+            "🏆 Cuadro final",
+            "👥 Equipos",
+        ]
 
 
 class TestInscribir:
@@ -225,28 +380,28 @@ class TestInscribir:
         app.text_input[1].set_value(division)
         return next(b for b in app.button if b.label == "Inscribir").click().run()
 
-    def test_el_equipo_queda_inscrito(self):
-        app = self._inscribir(abrir(papel="Administrador"), "Equipo Nuevo")
+    def test_el_equipo_queda_inscrito(self, liga):
+        app = self._inscribir(abrir(como=muestra.ADMIN), "Equipo Nuevo")
         assert any("inscrito" in s.value for s in app.success)
 
-    def test_y_aparece_en_la_lista_sin_tener_que_hacer_nada_mas(self):
+    def test_y_aparece_en_la_lista_sin_tener_que_hacer_nada_mas(self, liga):
         """La tabla se dibuja antes que el formulario, así que sin reservarle
         el hueco mostraría la lista de antes de inscribir y parecería que la
         acción no hizo nada."""
-        app = abrir(papel="Administrador")
-        antes = len(app.dataframe[0].value)
+        app = abrir(como=muestra.ADMIN)
+        antes = len(app.dataframe[1].value)
         app = self._inscribir(app, "Equipo Nuevo")
         assert len(app.dataframe[0].value) == antes + 1
 
-    def test_un_nombre_repetido_se_rechaza_con_su_motivo(self):
-        app = self._inscribir(abrir(papel="Administrador"), "Los Tigres")
+    def test_un_nombre_repetido_se_rechaza_con_su_motivo(self, liga):
+        app = self._inscribir(abrir(como=muestra.ADMIN), "Los Tigres")
         assert any("Ya hay un participante" in w.value for w in app.warning)
 
-    def test_sin_nombre_lo_dice_en_vez_de_callarse(self):
-        app = abrir(papel="Administrador")
+    def test_sin_nombre_lo_dice_en_vez_de_callarse(self, liga):
+        app = abrir(como=muestra.ADMIN)
         app = next(b for b in app.button if b.label == "Inscribir").click().run()
         assert any("Escribe el nombre" in w.value for w in app.warning)
 
-    def test_el_registrador_tambien_puede_en_la_suya(self):
-        app = self._inscribir(abrir(papel="Registrador"), "De la Profe")
+    def test_el_registrador_tambien_puede_en_la_suya(self, liga):
+        app = self._inscribir(abrir(como=muestra.PROFE), "De la Profe")
         assert any("inscrito" in s.value for s in app.success)

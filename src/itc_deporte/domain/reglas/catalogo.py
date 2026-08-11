@@ -12,7 +12,7 @@ y puntuaciones como dato configurable.
 
 from __future__ import annotations
 
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from typing import Any, Callable, Mapping
 
 from ..errores import ReglaInvalida
@@ -146,3 +146,98 @@ def parametros_de(regla: object) -> dict[str, Any]:
         for clave, valor in crudos.items()
         if isinstance(valor, (int, float, str, bool, type(None)))
     }
+
+
+# ── Deportes ────────────────────────────────────────────────────────────────
+# Un deporte no es solo un nombre y un icono: trae consigo cómo se puntúa. El
+# voleibol no admite empates y el baloncesto no reparte punto por empatar, pero
+# hasta ahora toda competición nacía con el 3/1/0 del fútbol viniera del deporte
+# que viniera, porque la pantalla de crear no ofrecía elegir reglas y el
+# constructor tomaba las de por defecto.
+#
+# Registrar un deporte aquí es darle sus reglas, y a partir de ese momento
+# crear una competición suya las trae puestas. Se pueden ajustar antes de dar
+# de alta la competición; lo que se guarda son las ajustadas.
+
+
+@dataclass(frozen=True, slots=True)
+class DeporteDelCatalogo:
+    """Un deporte y las reglas que le corresponden por defecto.
+
+    Los parámetros van como pares y no como `dict` para que la entrada sea
+    inmutable y comparable, igual que las reglas que describe.
+    """
+
+    id: str
+    nombre: str
+    icono: str = ""
+    puntuacion: str = "victoria_derrota"
+    parametros: tuple[tuple[str, int], ...] = ()
+    desempate: tuple[str, ...] = ("puntos", "diferencia", "a_favor")
+
+    def deporte(self):
+        """El `Deporte` del dominio que le corresponde."""
+        from ..competicion import Deporte
+
+        return Deporte(self.id, self.nombre, self.icono)
+
+    def puntuacion_por_defecto(self) -> SistemaDePuntuacion:
+        return crear_puntuacion(self.puntuacion, dict(self.parametros))
+
+    def reglas(self, puntuacion: SistemaDePuntuacion | None = None):
+        """Las reglas del deporte, o las mismas con la puntuación ajustada.
+
+        El desempate se reconstruye siempre sobre la puntuación que se vaya a
+        usar: el enfrentamiento directo la compone, y uno armado sobre el 3/1/0
+        daría otra cosa dentro de una competición por sets.
+        """
+        from ..competicion import ReglasDeCompeticion
+
+        elegida = puntuacion if puntuacion is not None else self.puntuacion_por_defecto()
+        return ReglasDeCompeticion(
+            puntuacion=elegida,
+            desempate=tuple(crear_desempate(n, elegida) for n in self.desempate),
+        )
+
+
+#: Sin empate posible y con el desempate por partidos ganados: en voleibol la
+#: diferencia de sets desempata después, no antes.
+_DESEMPATE_POR_SETS = ("puntos", "partidos_ganados", "diferencia")
+
+DEPORTES: Mapping[str, DeporteDelCatalogo] = {
+    deporte.id: deporte
+    for deporte in (
+        DeporteDelCatalogo("microfutbol", "Microfútbol", "⚽"),
+        DeporteDelCatalogo("futbol", "Fútbol", "⚽"),
+        DeporteDelCatalogo("futbol_sala", "Fútbol sala", "🥅"),
+        DeporteDelCatalogo(
+            "baloncesto",
+            "Baloncesto",
+            "🏀",
+            # 2/0/0: en baloncesto no hay empate que premiar, se juega prórroga.
+            parametros=(("victoria", 2), ("empate", 0), ("derrota", 0)),
+        ),
+        DeporteDelCatalogo(
+            "voleyball",
+            "Voleibol",
+            "🏐",
+            puntuacion="por_sets",
+            desempate=_DESEMPATE_POR_SETS,
+        ),
+        DeporteDelCatalogo(
+            "tenis_de_mesa",
+            "Tenis de mesa",
+            "🏓",
+            puntuacion="por_sets",
+            desempate=_DESEMPATE_POR_SETS,
+        ),
+        DeporteDelCatalogo(
+            "ajedrez",
+            "Ajedrez",
+            "♟️",
+            # 2/1/0 y no 1/½/0: los puntos de la tabla son enteros. La escala
+            # cambia, el orden que produce es el mismo.
+            parametros=(("victoria", 2), ("empate", 1), ("derrota", 0)),
+        ),
+    )
+}

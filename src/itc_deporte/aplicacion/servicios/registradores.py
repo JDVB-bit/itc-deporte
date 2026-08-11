@@ -13,6 +13,8 @@ y `otorgar_por_usuario` no envía correo en ningún caso.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from ...domain.identidades import CompeticionId
 from ..errores import NoEncontrado
 from ..permisos import Accion, Concesion, Identidad, Politica, Rol
@@ -21,6 +23,24 @@ from ..puertos import (
     RepositorioDeCompeticiones,
     RepositorioDeConcesiones,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class RegistradorConcedido:
+    """Quién tiene el permiso, con el correo por el que se le reconoce.
+
+    El panel concede por correo y listaba por id, así que enseñaba UUID crudos:
+    no había manera de saber a quién se le estaba revocando el permiso. El
+    correo puede faltar —un usuario borrado, una cuenta sin dirección—, y en ese
+    caso queda el id, que es mejor que nada.
+    """
+
+    usuario_id: str
+    email: str | None = None
+
+    @property
+    def etiqueta(self) -> str:
+        return self.email or self.usuario_id
 
 
 class ServicioDeRegistradores:
@@ -36,12 +56,19 @@ class ServicioDeRegistradores:
         self._autenticador = autenticador
         self._politica = politica
 
-    def de_competicion(self, competicion_id: CompeticionId) -> tuple[Concesion, ...]:
+    def de_competicion(
+        self, competicion_id: CompeticionId
+    ) -> tuple[RegistradorConcedido, ...]:
+        """Quién puede registrar en esta competición, por su correo."""
         return tuple(
-            c
-            for c in self._concesiones.de_competicion(competicion_id)
-            if c.rol is Rol.REGISTRADOR
+            RegistradorConcedido(concesion.usuario_id, self._correo(concesion.usuario_id))
+            for concesion in self._concesiones.de_competicion(competicion_id)
+            if concesion.rol is Rol.REGISTRADOR
         )
+
+    def _correo(self, usuario_id: str) -> str | None:
+        identidad = self._autenticador.por_id(usuario_id)
+        return identidad.email if identidad else None
 
     def otorgar_por_email(
         self, actor: Identidad, competicion_id: CompeticionId, email: str

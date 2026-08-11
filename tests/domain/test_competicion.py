@@ -292,6 +292,28 @@ class TestReglasDeCompeticion:
             ReglasDeCompeticion(desempate=())
 
 
+class TestQueMarcadoresAdmite:
+    """Preguntarle a la regla en vez de mantener una lista de casos: una
+    puntuación nueva del catálogo queda cubierta sin tocar nada."""
+
+    def test_una_liga_normal_admite_el_empate(self):
+        assert ReglasDeCompeticion().admite(Marcador(1, 1))
+
+    def test_una_por_sets_no(self):
+        assert not ReglasDeCompeticion(puntuacion=PorSets()).admite(Marcador(2, 2))
+
+    def test_una_por_sets_si_admite_un_resultado_normal(self):
+        assert ReglasDeCompeticion(puntuacion=PorSets()).admite(Marcador(3, 2))
+
+    def test_exigir_deja_pasar_lo_que_admite(self):
+        ReglasDeCompeticion(puntuacion=PorSets()).exigir_que_admita(Marcador(3, 0))
+
+    def test_exigir_lanza_con_el_motivo_de_la_regla(self):
+        """El mensaje sale de la propia puntuación, así que dice qué pasa."""
+        with pytest.raises(ErrorDeDominio, match="no puede quedar empatado"):
+            ReglasDeCompeticion(puntuacion=PorSets()).exigir_que_admita(Marcador(2, 2))
+
+
 class TestFormatoYCalendario:
     """La competición lleva su formato y su calendario: sin ellos no sabría
     cómo sortearse."""

@@ -73,11 +73,18 @@ class CompeticionesSupabase(_Base):
         )
         if fila is None:
             return None
-        return self._componer(fila)
+        return self._componer([fila])[0]
 
     def listar(self) -> tuple[Competicion, ...]:
+        """Tres consultas en total, no dos por competición.
+
+        Antes componía cada competición por su cuenta, con una consulta para su
+        deporte y otra para sus fases. La barra lateral las lista todas en cada
+        recarga, así que con seis competiciones eran trece viajes de red para
+        pintar un menú.
+        """
         filas = self._filas(self._db.table("competiciones").select("*").execute())
-        return tuple(self._componer(f) for f in filas)
+        return self._componer(filas)
 
     def guardar(self, competicion: Competicion) -> None:
         self._db.table("deportes").upsert(
@@ -96,26 +103,44 @@ class CompeticionesSupabase(_Base):
     def eliminar(self, competicion_id: CompeticionId) -> None:
         self._db.table("competiciones").delete().eq("id", competicion_id).execute()
 
-    def _componer(self, fila: dict) -> Competicion:
-        deporte_fila = self._una(
-            self._db.table("deportes").select("*").eq("id", fila["deporte_id"]).execute()
-        )
-        deporte = (
-            m.deporte_desde_fila(deporte_fila)
-            if deporte_fila
-            else Deporte(fila["deporte_id"], fila["deporte_id"])
-        )
-        fases = tuple(
-            m.fase_desde_fila(f)
-            for f in self._filas(
-                self._db.table("fases")
-                .select("*")
-                .eq("competicion_id", fila["id"])
-                .order("orden")
-                .execute()
+    def _componer(self, filas: list[dict]) -> tuple[Competicion, ...]:
+        """Compone el lote entero con dos consultas, sean una o veinte filas."""
+        if not filas:
+            return ()
+        deportes = self._deportes({f["deporte_id"] for f in filas})
+        fases = self._fases([f["id"] for f in filas])
+        return tuple(
+            m.competicion_desde_fila(
+                fila,
+                deportes.get(fila["deporte_id"])
+                # Un deporte que no está en el catálogo no impide leer la
+                # competición: se muestra con su id por nombre.
+                or Deporte(fila["deporte_id"], fila["deporte_id"]),
+                fases.get(fila["id"], ()),
             )
+            for fila in filas
         )
-        return m.competicion_desde_fila(fila, deporte, fases)
+
+    def _deportes(self, ids: set[str]) -> dict[str, Deporte]:
+        filas = self._filas(
+            self._db.table("deportes").select("*").in_("id", sorted(ids)).execute()
+        )
+        return {f["id"]: m.deporte_desde_fila(f) for f in filas}
+
+    def _fases(self, competiciones: Sequence[str]) -> dict[str, tuple]:
+        filas = self._filas(
+            self._db.table("fases")
+            .select("*")
+            .in_("competicion_id", list(competiciones))
+            .order("orden")
+            .execute()
+        )
+        agrupadas: dict[str, list] = {}
+        for fila in filas:
+            agrupadas.setdefault(fila["competicion_id"], []).append(
+                m.fase_desde_fila(fila)
+            )
+        return {clave: tuple(valor) for clave, valor in agrupadas.items()}
 
 
 class ParticipantesSupabase(_Base):
@@ -148,6 +173,7 @@ class ParticipantesSupabase(_Base):
         )
 
     def guardar(self, participante: Participante) -> None:
+        self._asegurar_division(participante)
         self._db.table("participantes").upsert(
             m.participante_a_fila(participante), on_conflict="id"
         ).execute()
@@ -157,6 +183,33 @@ class ParticipantesSupabase(_Base):
         filas = m.miembros_a_filas(participante)
         if filas:
             self._db.table("miembros").upsert(filas, on_conflict="id").execute()
+
+    def _asegurar_division(self, participante: Participante) -> None:
+        """Da de alta la división del participante si aún no existe.
+
+        `participantes` referencia `divisiones` con una clave ajena compuesta,
+        y **nada** escribía nunca en esa tabla: no hay repositorio de
+        divisiones ni servicio que las cree. En memoria no se notaba, porque no
+        hay integridad referencial; contra Postgres, inscribir a alguien con su
+        curso —que es lo que pide el formulario, con «601» de ejemplo— era una
+        violación de clave ajena. Inscribir sin curso no fallaba, porque una
+        clave ajena compuesta con un lado nulo no se comprueba, y por eso el
+        camino roto era justo el que usa el colegio.
+
+        La división nace con el curso como nombre. La jerarquía de
+        `CatalogoDeDivisiones` sigue sin usarse: darle padres es otra pantalla,
+        no un requisito para poder inscribir.
+        """
+        if not participante.division_id:
+            return
+        self._db.table("divisiones").upsert(
+            {
+                "id": participante.division_id,
+                "competicion_id": participante.competicion_id,
+                "nombre": participante.division_id,
+            },
+            on_conflict="competicion_id,id",
+        ).execute()
 
     def eliminar(self, participante_id: ParticipanteId) -> None:
         self._db.table("participantes").delete().eq("id", participante_id).execute()

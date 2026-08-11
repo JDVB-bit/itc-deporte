@@ -125,6 +125,15 @@ class Autenticador(Protocol):
 
     def por_email(self, email: str) -> Identidad | None: ...
 
+    def por_id(self, usuario_id: str) -> Identidad | None:
+        """Quién es ese id, para poder mostrarlo por su correo.
+
+        El panel de Registradores concede por correo y listaba por id, así que
+        enseñaba UUID crudos: no había forma de saber a quién se le estaba
+        revocando el permiso.
+        """
+        ...
+
     def invitar(self, email: str) -> Identidad:
         """Da de alta a alguien por correo y devuelve su identidad."""
         ...

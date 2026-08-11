@@ -73,6 +73,13 @@ class ServicioDeCuadroFinal:
         self._politica.exigir(
             actor, Accion.REGISTRAR_RESULTADO, competicion_id
         )
+        # Por el mismo motivo que en `ServicioDeResultados`: un marcador que la
+        # puntuación no admite entraba y reventaba después al calcular la tabla.
+        # El cuadro comparte tabla y reglas con la fase de grupos.
+        competicion = self._competiciones.obtener(competicion_id)
+        if competicion is None:
+            raise NoEncontrado(f"No existe la competición {competicion_id!r}.")
+        competicion.reglas.exigir_que_admita(marcador)
         bracket = self.actual(competicion_id, fase_id).con_resultado(
             ronda, posicion, marcador
         )

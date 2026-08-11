@@ -49,11 +49,20 @@ class Accion(Enum):
 
 
 #: Acciones que un registrador puede ejecutar en las competiciones que le fueron
-#: asignadas. Todo lo demás —crear competiciones, sortear, repartir permisos— es
+#: asignadas. Todo lo demás —sortear, cambiar el estado, repartir permisos— es
 #: del Admin.
 DE_REGISTRADOR = frozenset(
     {Accion.LEER, Accion.INSCRIBIR_PARTICIPANTE, Accion.REGISTRAR_RESULTADO}
 )
+
+#: Lo que un registrador puede hacer **sin** estar dentro de una competición.
+#:
+#: Crear la suya. Va aparte porque su concesión es *por competición*, así que
+#: preguntar por sus roles sin ámbito no encuentra ninguna y la acción quedaba
+#: fuera de su alcance por construcción. Quien la crea queda como registrador de
+#: ella —lo hace `ServicioDeCompeticiones.crear`—, y ahí se acaba: sortearla y
+#: cambiarle el estado siguen siendo del Admin.
+DE_REGISTRADOR_SIN_AMBITO = frozenset({Accion.CREAR_COMPETICION})
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +157,21 @@ class Politica:
         }
         return frozenset(otorgados | {Rol.VISITANTE})
 
+    def es_registrador_en_alguna(self, identidad: Identidad) -> bool:
+        """Si tiene concesión de registrador en alguna competición, la que sea.
+
+        `roles_de` no sirve para esto: filtra por ámbito, y la concesión de un
+        registrador siempre lleva competición, así que preguntando sin ámbito
+        nunca aparece. A quien no se ha identificado no se le pregunta, por lo
+        mismo que en `roles_de`.
+        """
+        if identidad is ANONIMO:
+            return False
+        return any(
+            concesion.rol is Rol.REGISTRADOR
+            for concesion in self._concesiones.de_usuario(identidad.usuario_id)
+        )
+
     def puede(
         self,
         identidad: Identidad,
@@ -158,6 +182,10 @@ class Politica:
         if Rol.ADMIN in roles:
             return True
         if Rol.REGISTRADOR in roles and accion in DE_REGISTRADOR:
+            return True
+        if accion in DE_REGISTRADOR_SIN_AMBITO and self.es_registrador_en_alguna(
+            identidad
+        ):
             return True
         return accion is Accion.LEER
 

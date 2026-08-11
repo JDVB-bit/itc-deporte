@@ -3,7 +3,7 @@
 **Límite de estos tests.** `sqlglot` no entiende `CREATE POLICY` ni
 `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`: los reconoce como comandos opacos y
 no comprueba su sintaxis. Así que de este fichero solo queda verificada la tabla
-`concesiones`, sus índices y las dos funciones. Las políticas RLS no las valida este fichero: eso lo hace
+`concesiones`, sus índices y las funciones de apoyo. Las políticas RLS no las valida este fichero: eso lo hace
 `tests/contratos/test_rls.py`, que las ejercita con la clave `anon` contra una
 instancia real.
 
@@ -51,13 +51,13 @@ class TestLoQueSqlglotSiValida:
         }
         assert tablas == {"concesiones"}
 
-    def test_declara_las_dos_funciones_de_apoyo(self, sql):
+    def test_declara_las_funciones_de_apoyo(self, sql):
         funciones = [
             s
             for s in sqlglot.parse(sql, dialect="postgres")
             if s is not None and s.key == "create" and s.kind == "FUNCTION"
         ]
-        assert len(funciones) == 2
+        assert len(funciones) == 3
 
 
 class TestInvariantesDeLaConcesion:
@@ -115,7 +115,7 @@ class TestNingunaTablaQuedaExpuesta:
         Se cuentan solo las declaraciones, no las menciones en comentarios.
         """
         declaraciones = re.findall(r"^\s+language sql .*$", sql, re.MULTILINE)
-        assert len(declaraciones) == 2
+        assert len(declaraciones) == 3
         assert all(
             "security definer set search_path = public" in linea
             for linea in declaraciones
