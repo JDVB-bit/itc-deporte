@@ -116,51 +116,6 @@ def _papel(yo: Identidad) -> str:
 
 def barra_lateral(yo: Identidad):
     with st.sidebar:
-        st.markdown("## ITC Deportes")
-        if st.button(f"{tema.actual()['ico']} {tema.actual()['lbl']}"):
-            tema.alternar()
-            st.rerun()
-        st.markdown("---")
-
-        # No hay pantalla de registro, y es a propósito: un visitante no
-        # necesita cuenta, y las de administrar o registrar se conceden. El
-        # primer admin se crea desde el panel de Supabase (`docs/FASE_7.md`).
-        if yo is ANONIMO:
-            st.markdown("**👤 Visitante**")
-            st.caption("Puedes consultar tablas, calendarios y cuadros.")
-            with st.expander("🔐 Iniciar sesión"):
-                with st.form("acceso"):
-                    correo = st.text_input("Correo")
-                    contrasena = st.text_input("Contraseña", type="password")
-                    if st.form_submit_button("Entrar") and correo:
-                        sesion = SERVICIOS.autenticador.iniciar_sesion(
-                            correo, contrasena
-                        )
-                        if sesion:
-                            st.session_state.token = sesion.token
-                            st.rerun()
-                        else:
-                            st.error("Correo o contraseña incorrectos.")
-        else:
-            st.markdown(f"**★ {yo.email or yo.usuario_id}**")
-            st.caption(_papel(yo))
-            if st.button("Cerrar sesión"):
-                st.session_state.token = None
-                st.session_state.identificado_con = None
-                st.rerun()
-
-        st.markdown("---")
-        competiciones = SERVICIOS.competiciones.listar()
-        if not competiciones:
-            return None
-        return st.radio(
-            "Competición",
-            competiciones,
-            format_func=lambda c: f"{c.deporte.icono} {c.nombre}",
-        )
-
-def barra_lateral(yo: Identidad):
-    with st.sidebar:
         st.markdown(
             '<div class="itc-side-card">'
             '<div style="font-family:Poppins;font-weight:700;font-size:1.05rem;'
@@ -171,11 +126,6 @@ def barra_lateral(yo: Identidad):
         if st.button(f"{tema.actual()['ico']} {tema.actual()['lbl']}"):
             tema.alternar()
             st.rerun()
-
-        if SERVICIOS.es_demostracion:
-            st.markdown('<div class="itc-side-card">', unsafe_allow_html=True)
-            _selector_de_papel(yo)
-            st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="itc-side-card">', unsafe_allow_html=True)
         if yo is ANONIMO:
