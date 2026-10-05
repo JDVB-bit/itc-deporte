@@ -9,12 +9,16 @@ Sin las credenciales de Supabase no arranca, y dice cuál falta.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 
 from itc_deporte.aplicacion.permisos import ANONIMO, Accion, Identidad, Rol
 from itc_deporte.domain.competicion import FaseDeGrupos, FaseEliminatoria
 from itc_deporte.ui import construir, tema, vistas
 from itc_deporte.ui.composicion import ERRORES_DE_RED, SistemaSinPreparar
+
+RAIZ = Path(__file__).resolve().parent
 
 st.set_page_config(
     page_title="ITC Deportes",
@@ -116,14 +120,12 @@ def _papel(yo: Identidad) -> str:
 
 def barra_lateral(yo: Identidad):
     with st.sidebar:
-        st.markdown(
-            '<div class="itc-side-card">'
-            '<div style="font-family:Poppins;font-weight:700;font-size:1.05rem;'
-            'letter-spacing:1px;">🏅 ITC DEPORTES</div>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
-        if st.button(f"{tema.actual()['ico']} {tema.actual()['lbl']}"):
+        logo = RAIZ / "static" / "logo_itc-deportes.png"
+        if logo.exists():
+            st.image(str(logo), width="stretch")
+        else:
+            st.markdown("### ITC DEPORTES")
+        if st.button("Cambiar tema"):
             tema.alternar()
             st.rerun()
 
@@ -131,9 +133,8 @@ def barra_lateral(yo: Identidad):
         if yo is ANONIMO:
             st.markdown(
                 '<div class="itc-side-user">'
-                '<div class="itc-side-avatar">👤</div>'
-                '<div><div class="itc-side-name">Visitante</div>'
-                '<div class="itc-side-role">Sin identificar</div></div></div>',
+                '<div class="itc-side-avatar">V</div>'
+                '<div><div class="itc-side-name">Visitante</div></div></div>',
                 unsafe_allow_html=True,
             )
             st.caption("Puedes consultar tablas, calendarios y cuadros.")
@@ -151,15 +152,14 @@ def barra_lateral(yo: Identidad):
                         else:
                             st.error("Correo o contraseña incorrectos.")
         else:
-            roles = SERVICIOS.politica.roles_de(yo)
-            etiqueta_rol = "Administrador" if Rol.ADMIN in roles else "Registrador"
+            etiqueta_rol = _papel(yo)
             st.markdown(
                 '<div class="itc-side-user">'
-                '<div class="itc-side-avatar">⭐</div>'
-                f'<div><div class="itc-side-name">{yo.email or yo.usuario_id}</div>'
-                f'<div class="itc-side-role">{etiqueta_rol}</div></div></div>',
+                f'<div class="itc-side-avatar">{(yo.email or "?")[0].upper()}</div>'
+                f'<div><div class="itc-side-name">{yo.email or yo.usuario_id}</div></div></div>',
                 unsafe_allow_html=True,
             )
+            st.caption(etiqueta_rol)
             if st.button("Cerrar sesión"):
                 st.session_state.token = None
                 st.rerun()
@@ -186,7 +186,21 @@ def main() -> None:
     yo = actor()
     competicion = barra_lateral(yo)
 
-    tema.hero("ITC DEPORTES", "Sistema de gestión deportiva · 2026")
+    chips = tuple(
+        c
+        for c in (
+            competicion and f"{competicion.deporte.icono} {competicion.deporte.nombre}",
+            competicion and competicion.temporada and f"Temporada {competicion.temporada}",
+            competicion and competicion.estado.value,
+        )
+        if c
+    )
+    tema.hero(
+        "ITC DEPORTES",
+        "Sistema de gestión deportiva · 2026",
+        chips,
+        fondos=tema.fondos(RAIZ / "static"),
+    )
 
     if competicion is None:
         st.info("Todavía no hay ninguna competición.")
@@ -194,6 +208,7 @@ def main() -> None:
         # pestaña vive dentro de una competición, así que sobre una base vacía
         # un administrador no tenía por dónde empezar.
         vistas.nueva_competicion(SERVICIOS, yo)
+        tema.pie()
         return
 
     st.markdown(f"## {competicion.deporte.icono} {competicion.nombre}")
@@ -242,6 +257,7 @@ def main() -> None:
     if crea:
         with abiertas["➕ Nueva competición"]:
             vistas.nueva_competicion(SERVICIOS, yo)
+    tema.pie()
 
 
 try:
