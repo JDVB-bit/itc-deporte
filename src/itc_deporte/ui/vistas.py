@@ -79,22 +79,8 @@ def _ejecutar(accion, *args, exito: str = "Hecho.", **kwargs) -> bool:
 # ── Consulta ───────────────────────────────────────────────────────────────
 
 
-def _pintar_clasificacion(filas, nombres) -> None:
-    filas_html = "".join(
-        f"<tr><td>{posicion}</td>"
-        f"<td>{_esc(nombres.get(f.participante_id, f.participante_id))}</td>"
-        f"<td>{f.jugados}</td><td>{f.ganados}</td><td>{f.empatados}</td><td>{f.perdidos}</td>"
-        f"<td>{f.a_favor}</td><td>{f.en_contra}</td><td>{f.diferencia}</td>"
-        f'<td class="itc-pts">{f.puntos}</td></tr>'
-        for posicion, f in enumerate(filas, start=1)
-    )
-    st.markdown(
-        "<table class='itc-tabla'>"
-        "<thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>G</th><th>E</th>"
-        "<th>P</th><th>AF</th><th>EC</th><th>DIF</th><th>Pts</th></tr></thead>"
-        f"<tbody>{filas_html}</tbody></table>",
-        unsafe_allow_html=True,
-    )
+def _pintar_clasificacion(filas, nombres, cursos=None, cupos: int = 0) -> None:
+    tema.tabla(filas, nombres, cursos, cupos)
 
 
 def _calcular(consulta, *args):
@@ -125,10 +111,13 @@ def tabla_de_posiciones(servicios, competicion, fase) -> None:
     ordena por puntos a quienes juegan torneos distintos. `de_grupo` existía
     para esto y no lo llamaba nadie.
     """
-    nombres = {
-        p.id: p.nombre
-        for p in servicios.inscripciones.inscritos(competicion.id)
-    }
+    inscritos = servicios.inscripciones.inscritos(competicion.id)
+    nombres = {p.id: p.nombre for p in inscritos}
+    cursos = {p.id: p.division_id for p in inscritos if p.division_id}
+    cupos = next(
+        (f.cupos for f in competicion.fases_ordenadas if isinstance(f, FaseEliminatoria)),
+        0,
+    )
     grupos = getattr(fase, "grupos", ())
 
     if grupos:
@@ -140,7 +129,7 @@ def tabla_de_posiciones(servicios, competicion, fase) -> None:
             if filas is None:
                 return
             if filas:
-                _pintar_clasificacion(filas, nombres)
+                _pintar_clasificacion(filas, nombres, cursos)
             else:
                 st.caption("Este grupo todavía no tiene participantes.")
         return
@@ -151,7 +140,7 @@ def tabla_de_posiciones(servicios, competicion, fase) -> None:
     if not filas:
         st.info("Todavía no hay participantes inscritos.")
         return
-    _pintar_clasificacion(filas, nombres)
+    _pintar_clasificacion(filas, nombres, cursos, cupos)
 
 
 def calendario(servicios, competicion, fase, actor: Identidad) -> None:
@@ -187,21 +176,12 @@ def _fila_de_partido(servicios, partido, nombres, puede_registrar, actor) -> Non
     local = nombres.get(partido.local, partido.local)
     visitante = nombres.get(partido.visitante, partido.visitante)
     marcador = partido.marcador
-
-    columnas = st.columns([5, 2, 5, 3] if puede_registrar else [5, 2, 5])
-    columnas[0].markdown(f"**{local}**")
-    columnas[1].markdown(
-        f'<div class="itc-marcador">{marcador.local} - {marcador.visitante}</div>'
-        if marcador
-        else '<div class="itc-vacia">vs</div>',
-        unsafe_allow_html=True,
-    )
-    columnas[2].markdown(f"**{visitante}**")
+    tema.partido(local, visitante, marcador)
 
     if not puede_registrar:
         return
 
-    with columnas[3].popover("Marcador", width="stretch"):
+    with st.popover("Cargar marcador", width="stretch"):
         with st.form(f"res-{partido.id}"):
             izquierda, derecha = st.columns(2)
             g1 = izquierda.number_input(
@@ -257,78 +237,125 @@ def cuadro_final(servicios, competicion, fase, actor: Identidad) -> None:
 
     campeon = bracket.campeon()
     if campeon:
-        st.success(f"🏆 Campeón: **{nombres.get(campeon, campeon)}**")
+        tema.campeon(nombres.get(campeon, campeon))
 
-    columnas = st.columns(bracket.total_rondas)
-    for numero, ronda in enumerate(bracket.rondas):
-        with columnas[numero]:
-            tema.seccion(nombre_de_ronda(len(ronda)))
-            for casilla in ronda:
-                _casilla_del_cuadro(
-                    servicios,
-                    competicion,
-                    fase,
-                    casilla,
-                    nombres,
-                    puede_registrar,
-                    actor,
-                )
+    inscritos = servicios.inscripciones.inscritos(competicion.id)
+    cursos = {p.id: p.division_id for p in inscritos if p.division_id}
+    tema.llave(bracket.rondas, nombres, nombre_de_ronda, cursos)
+
+    if puede_registrar:
+        _cargar_resultados_del_cuadro(
+            servicios, competicion, fase, bracket, nombres, actor
+        )
+    if servicios.politica.puede(
+        actor, Accion.ADMINISTRAR_COMPETICION, competicion.id
+    ):
+        _administrar_cuadro(servicios, competicion, fase, bracket, nombres, actor)
 
 
-def _casilla_del_cuadro(
-    servicios, competicion, fase, casilla, nombres, puede_registrar, actor
+def _cargar_resultados_del_cuadro(
+    servicios, competicion, fase, bracket, nombres, actor
 ) -> None:
-    ganador = casilla.ganador()
-
-    def etiqueta(participante):
-        if participante is None:
-            return '<span class="itc-vacia">por definir</span>'
-        nombre = nombres.get(participante, participante)
-        return f"<b>{nombre}</b>" if participante == ganador else nombre
-
-    marcador = casilla.marcador
-    resultado = f"{marcador.local}–{marcador.visitante}" if marcador else ""
-    clase = "itc-casilla ganador" if ganador else "itc-casilla"
-    st.markdown(
-        f'<div class="{clase}">{etiqueta(casilla.local)}<br>'
-        f'{etiqueta(casilla.visitante)}'
-        f'{f"<br><small>{resultado}</small>" if resultado else ""}</div>',
-        unsafe_allow_html=True,
-    )
-
-    if casilla.es_bye:
-        st.caption("pasa sin jugar")
+    """El cuadro dibujado es de solo lectura: los marcadores se cargan aquí."""
+    jugables = [c for ronda in bracket.rondas for c in ronda if c.listo]
+    if not jugables:
         return
-    if casilla.espera_rival:
-        st.caption("esperando rival")
-        return
-    if not puede_registrar or not casilla.listo:
-        return
+    with st.expander("Cargar o corregir resultados"):
+        for casilla in jugables:
+            local = nombres.get(casilla.local, casilla.local)
+            visitante = nombres.get(casilla.visitante, casilla.visitante)
+            marcador = casilla.marcador
+            tema.partido(local, visitante, marcador)
+            with st.popover("Marcador", width="stretch", key=f"pop-{casilla.ronda}-{casilla.posicion}"):
+                with st.form(f"cuadro-{casilla.ronda}-{casilla.posicion}"):
+                    izquierda, derecha = st.columns(2)
+                    g1 = izquierda.number_input(
+                        local, min_value=0, value=marcador.local if marcador else 0, step=1
+                    )
+                    g2 = derecha.number_input(
+                        visitante,
+                        min_value=0,
+                        value=marcador.visitante if marcador else 0,
+                        step=1,
+                    )
+                    if st.form_submit_button("Guardar", width="stretch"):
+                        if _ejecutar(
+                            servicios.cuadro.registrar,
+                            actor,
+                            competicion.id,
+                            fase.id,
+                            casilla.ronda,
+                            casilla.posicion,
+                            Marcador(int(g1), int(g2)),
+                            exito="Resultado registrado, cuadro propagado.",
+                        ):
+                            st.rerun()
 
-    with st.popover("Marcador", width="stretch"):
-        with st.form(f"cuadro-{casilla.ronda}-{casilla.posicion}"):
-            izquierda, derecha = st.columns(2)
-            g1 = izquierda.number_input(
-                "Local", min_value=0, value=marcador.local if marcador else 0, step=1
+
+def _administrar_cuadro(servicios, competicion, fase, bracket, nombres, actor) -> None:
+    """Editar o borrar el cuadro: solo el administrador."""
+    primera = bracket.rondas[0]
+    en_cuadro = [p for c in primera for p in (c.local, c.visitante) if p is not None]
+    con_resultado = [c for r in bracket.rondas for c in r if c.marcador is not None]
+    hay_resultados = bool(con_resultado)
+
+    def etiqueta(c):
+        local = nombres.get(c.local, c.local)
+        visitante = nombres.get(c.visitante, c.visitante)
+        nombre = nombre_de_ronda(len(bracket.rondas[c.ronda]))
+        return f"{nombre}: {local} {c.marcador.local}-{c.marcador.visitante} {visitante}"
+
+    with st.expander("Administrar el cuadro"):
+        tema.seccion("Cambiar de sitio a dos equipos")
+        if hay_resultados:
+            st.caption(
+                "Solo es posible antes de jugar. Borra primero los resultados "
+                "del cuadro."
             )
-            g2 = derecha.number_input(
-                "Visitante",
-                min_value=0,
-                value=marcador.visitante if marcador else 0,
-                step=1,
+        else:
+            uno = st.selectbox(
+                "Equipo", en_cuadro, format_func=lambda p: nombres.get(p, p), key="cuadro-uno"
             )
-            if st.form_submit_button("Guardar", width="stretch"):
+            otro = st.selectbox(
+                "Intercambiar con",
+                [p for p in en_cuadro if p != uno],
+                format_func=lambda p: nombres.get(p, p),
+                key="cuadro-otro",
+            )
+            if st.button("Intercambiar", key="cuadro-intercambiar"):
                 if _ejecutar(
-                    servicios.cuadro.registrar,
-                    actor,
-                    competicion.id,
-                    fase.id,
-                    casilla.ronda,
-                    casilla.posicion,
-                    Marcador(int(g1), int(g2)),
-                    exito="Resultado registrado, cuadro propagado.",
+                    servicios.cuadro.intercambiar,
+                    actor, competicion.id, fase.id, uno, otro,
+                    exito="Equipos intercambiados.",
                 ):
                     st.rerun()
+
+        tema.seccion("Borrar un resultado")
+        if not con_resultado:
+            st.caption("Todavía no hay resultados en el cuadro.")
+        else:
+            elegida = st.selectbox(
+                "Resultado", con_resultado, format_func=etiqueta, key="cuadro-resultado"
+            )
+            st.caption("Se quitan también los cruces que dependían de él.")
+            if st.button("Borrar resultado", key="cuadro-borrar-resultado"):
+                if _ejecutar(
+                    servicios.cuadro.borrar_resultado,
+                    actor, competicion.id, fase.id, elegida.ronda, elegida.posicion,
+                    exito="Resultado borrado.",
+                ):
+                    st.rerun()
+
+        tema.seccion("Eliminar el cuadro")
+        st.caption("Borra el cuadro y todos sus resultados. Después se puede generar de nuevo.")
+        seguro = st.checkbox("Entiendo que no se puede deshacer", key="cuadro-seguro")
+        if st.button("Eliminar cuadro", key="cuadro-eliminar", disabled=not seguro):
+            if _ejecutar(
+                servicios.cuadro.eliminar,
+                actor, competicion.id, fase.id,
+                exito="Cuadro eliminado.",
+            ):
+                st.rerun()
 
 
 def _retirar(servicios, inscritos, actor: Identidad) -> None:
