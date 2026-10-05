@@ -60,6 +60,7 @@ _ESTILO = """
   --wire:color-mix(in srgb,var(--tx) 24%,transparent);
   --display:'Jost','Futura','Century Gothic',sans-serif;
   --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r:10px;--rg:16px;--ease:cubic-bezier(.2,.8,.2,1);
 }
 .stApp{background:var(--bg);color:var(--tx);font-family:'Inter',system-ui,sans-serif;}
 [data-testid="stHeader"]{background:transparent;}
@@ -72,28 +73,35 @@ _ESTILO = """
 .stApp hr{border-color:var(--line);}
 .stApp a{color:var(--ac);}
 
-/* Barra lateral */
+/* Barra lateral: ancho fijo, sin asa de redimensionado */
 section[data-testid="stSidebar"]{background:var(--sbg);border-right:1px solid var(--line);}
-section[data-testid="stSidebar"] [data-testid="stImage"] img{border-radius:0;}
-.itc-side-card{border:1px solid var(--line);background:var(--bgc);padding:12px;margin:8px 0;}
+[data-testid="stSidebarResizeHandle"]{display:none!important;pointer-events:none;}
+section[data-testid="stSidebar"] [data-testid="stImage"] img{border-radius:var(--r);}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlockBorderWrapper"]{border:1px solid var(--line);border-radius:var(--rg);background:var(--bgc);}
 .itc-side-user{display:flex;align-items:center;gap:12px;}
-.itc-side-avatar{width:36px;height:36px;display:grid;place-items:center;background:var(--ac);color:var(--aco);font-weight:600;flex:none;}
+.itc-side-avatar{width:38px;height:38px;display:grid;place-items:center;background:var(--ac);color:var(--aco);font-weight:600;flex:none;border-radius:var(--r);}
 .itc-side-name{font-weight:600;font-size:.95rem;overflow-wrap:anywhere;}
-.itc-side-role{font:500 12px/1.4 var(--mono);color:var(--tx2);}
-section[data-testid="stSidebar"] [data-testid="stRadio"] label{
-  border:1px solid var(--line);border-radius:0;padding:10px 12px;margin:0 0 -1px;width:100%;background:var(--bgc);transition:background .15s;
+.itc-label{font:500 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--tx3);margin:22px 2px 10px;}
+section[data-testid="stSidebar"] [data-testid="stRadio"] [role="radiogroup"]{gap:6px;}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label[data-baseweb="radio"]{
+  width:100%;margin:0;padding:11px 14px;background:transparent;border:1px solid transparent;border-radius:var(--r);
+  transition:background .18s var(--ease),border-color .18s var(--ease),transform .18s var(--ease),box-shadow .18s var(--ease);
 }
-section[data-testid="stSidebar"] [data-testid="stRadio"] label p{color:var(--tx);font-weight:500;}
-section[data-testid="stSidebar"] [data-testid="stRadio"] label:hover{background:var(--bga);}
-section[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked){background:var(--bga);box-shadow:inset 3px 0 0 var(--ac);}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label[data-baseweb="radio"]>div:first-child{display:none;}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label p{color:var(--tx2);font-weight:500;transition:color .18s;}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label:hover{background:var(--bga);transform:translateX(3px);}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label:hover p{color:var(--tx);}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked){background:var(--bga);border-color:var(--line);box-shadow:inset 3px 0 0 var(--ac);}
+section[data-testid="stSidebar"] [data-testid="stRadio"] label:has(input:checked) p{color:var(--tx);font-weight:600;}
 
 /* Botones: píldora, sin sombra */
 div[data-testid="stButton"] button,div[data-testid="stFormSubmitButton"] button{
   min-height:44px;border-radius:30px;padding:6px 20px;font-weight:500;
-  background:transparent;color:var(--tx);border:1px solid var(--wire);transition:background .15s,border-color .15s,opacity .15s;
+  background:transparent;color:var(--tx);border:1px solid var(--wire);transition:background .18s var(--ease),border-color .18s var(--ease),transform .12s var(--ease),opacity .18s;
 }
 div[data-testid="stButton"] button p,div[data-testid="stFormSubmitButton"] button p{color:inherit;}
-div[data-testid="stButton"] button:hover:not(:disabled){background:var(--bga);border-color:var(--tx);}
+div[data-testid="stButton"] button:hover:not(:disabled){background:var(--bga);border-color:var(--tx);transform:translateY(-1px);}
+div[data-testid="stButton"] button:active:not(:disabled),div[data-testid="stFormSubmitButton"] button:active{transform:scale(.96);}
 div[data-testid="stFormSubmitButton"] button{background:var(--ac);color:var(--aco);border-color:var(--ac);}
 div[data-testid="stFormSubmitButton"] button:hover{opacity:.85;background:var(--ac);color:var(--aco);}
 div[data-testid="stButton"] button:disabled{color:var(--ac);border-color:var(--ac);opacity:1;}
@@ -103,36 +111,42 @@ div[data-testid="stButton"] button:disabled{color:var(--ac);border-color:var(--a
 [data-baseweb="tab-list"]{gap:28px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none;padding-bottom:0;}
 [data-baseweb="tab-list"]::-webkit-scrollbar{display:none;}
 [data-baseweb="tab-highlight"],[data-baseweb="tab-border"]{display:none;}
-button[data-baseweb="tab"]{flex:0 0 auto;background:transparent;border:none;border-bottom:2px solid transparent;border-radius:0;padding:12px 0;color:var(--tx2);margin-bottom:-1px;}
+button[data-baseweb="tab"]{flex:0 0 auto;position:relative;background:transparent;border:none;border-radius:0;padding:12px 0;color:var(--tx2);margin-bottom:-1px;transition:color .18s;}
+button[data-baseweb="tab"]::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:var(--ac);transform:scaleX(0);transform-origin:left;transition:transform .3s var(--ease);}
 button[data-baseweb="tab"] p{color:inherit;font-weight:500;}
 button[data-baseweb="tab"]:hover{color:var(--tx);}
-button[data-baseweb="tab"][aria-selected="true"]{color:var(--tx);border-bottom-color:var(--ac);}
+button[data-baseweb="tab"][aria-selected="true"]{color:var(--tx);}
+button[data-baseweb="tab"][aria-selected="true"]::after{transform:scaleX(1);}
+div[data-baseweb="tab-panel"]{animation:itc-sube .3s var(--ease) both;}
 
 /* Campos y contenedores nativos: esquinas rectas */
-[data-baseweb="input"],[data-baseweb="base-input"],[data-baseweb="textarea"],[data-baseweb="select"]>div{background:var(--bgc);border-color:var(--line);border-radius:0;color:var(--tx);}
+[data-baseweb="input"],[data-baseweb="base-input"],[data-baseweb="textarea"],[data-baseweb="select"]>div{background:var(--bgc);border-color:var(--line);border-radius:var(--r);color:var(--tx);}
 [data-baseweb="input"]:focus-within,[data-baseweb="select"]>div:focus-within{border-color:var(--ac);box-shadow:none;}
 .stApp input,.stApp textarea{color:var(--tx);-webkit-text-fill-color:var(--tx);}
 .stApp input::placeholder,.stApp textarea::placeholder{color:var(--tx3);-webkit-text-fill-color:var(--tx3);}
 [data-baseweb="select"] svg,[data-testid="stNumberInput"] button{color:var(--tx2);}
-[data-baseweb="popover"] [data-baseweb="menu"],[data-baseweb="popover"] ul,[data-baseweb="calendar"]{background:var(--bgc);color:var(--tx);border-radius:0;}
+[data-baseweb="popover"] [data-baseweb="menu"],[data-baseweb="popover"] ul,[data-baseweb="calendar"]{background:var(--bgc);color:var(--tx);border-radius:var(--r);}
 [data-baseweb="popover"] li{color:var(--tx);}
 [data-baseweb="popover"] li:hover,[data-baseweb="popover"] li[aria-selected="true"]{background:var(--bga);}
-[data-testid="stPopoverBody"]{background:var(--bgc);border:1px solid var(--wire);border-radius:0;box-shadow:none;}
-[data-testid="stExpander"] details{background:transparent;border:1px solid var(--line);border-radius:0;}
+[data-testid="stPopoverBody"]{animation:itc-pop .2s var(--ease) both;background:var(--bgc);border:1px solid var(--wire);border-radius:var(--r);box-shadow:none;}
+[data-testid="stExpander"] details{background:transparent;border:1px solid var(--line);border-radius:var(--rg);overflow:hidden;}
 [data-testid="stExpander"] summary,[data-testid="stExpander"] summary p{color:var(--tx);font-weight:500;}
-[data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:0;}
-[data-testid="stAlert"]{border-radius:0;border:1px solid var(--line);}
+[data-testid="stDataFrame"]{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;}
+[data-testid="stAlert"]{border-radius:var(--r);border:1px solid var(--line);animation:itc-aviso .35s var(--ease) both;}
 [data-testid="stAlert"] p{color:var(--tx);}
-[data-testid="stForm"]{background:var(--bgc);border:1px solid var(--line);border-radius:0;padding:16px;}
+[data-testid="stForm"]{background:var(--bgc);border:1px solid var(--line);border-radius:var(--rg);padding:16px;}
 [data-testid="stCheckbox"] label p{color:var(--tx);}
 
 /* Encabezado editorial con la rueda de imágenes */
-.itc-hero{position:relative;overflow:hidden;min-height:clamp(270px,36vw,420px);display:flex;flex-direction:column;justify-content:flex-end;
+.itc-hero{position:relative;overflow:hidden;border-radius:var(--rg);min-height:clamp(300px,40vw,460px);display:flex;flex-direction:column;justify-content:flex-end;
   padding:clamp(18px,3.5vw,40px);margin-bottom:24px;background:var(--bgc);border:1px solid var(--line);}
 .itc-fondo{position:absolute;inset:0;z-index:0;}
-.itc-fondo i{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;filter:grayscale(.25);}
-.itc-hero::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(0deg,rgba(0,0,0,.88),rgba(0,0,0,.45) 55%,rgba(0,0,0,.6));}
-.itc-hero>*:not(.itc-fondo){position:relative;z-index:2;}
+.itc-fondo i{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;filter:grayscale(.2) contrast(1.05);will-change:opacity,transform;}
+.itc-hero::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(0deg,rgba(0,0,0,.9),rgba(0,0,0,.4) 55%,rgba(0,0,0,.55));}
+.itc-hero>*:not(.itc-fondo):not(.itc-prog){position:relative;z-index:2;}
+.itc-prog{position:absolute;z-index:2;right:clamp(18px,3.5vw,40px);bottom:clamp(18px,3.5vw,40px);display:flex;gap:6px;}
+.itc-prog b{display:block;width:26px;height:3px;border-radius:3px;background:rgba(255,255,255,.28);overflow:hidden;}
+.itc-prog b::after{content:"";display:block;height:100%;background:#fff;transform:scaleX(0);transform-origin:left;}
 .itc-eyebrow{font:500 12px/1.4 var(--mono);color:#D6D6D6;margin-bottom:10px;}
 .itc-titulo{font-family:var(--display);font-weight:500;line-height:1;font-size:clamp(2.4rem,8.5vw,4.75rem);color:#FFFFFF;}
 .itc-sub{color:#E0E0E0;font-size:clamp(.95rem,2.4vw,1.05rem);margin-top:10px;}
@@ -142,17 +156,17 @@ button[data-baseweb="tab"][aria-selected="true"]{color:var(--tx);border-bottom-c
 
 /* Secciones, partidos y banner del campeón */
 .itc-seccion{font-family:var(--display);font-weight:500;font-size:1.25rem;color:var(--tx);margin:28px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line);}
-.itc-marcador{display:inline-block;min-width:68px;text-align:center;font:700 1.25rem/1.6 var(--mono);letter-spacing:-.02em;color:var(--aco);background:var(--ac);padding:0 12px;}
+.itc-marcador{border-radius:8px;display:inline-block;min-width:68px;text-align:center;font:700 1.25rem/1.6 var(--mono);letter-spacing:-.02em;color:var(--aco);background:var(--ac);padding:0 12px;}
 .itc-vacia{color:var(--tx3);font-style:italic;}
-.itc-partido{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;background:var(--bgc);border:1px solid var(--line);padding:10px 16px;margin-bottom:-1px;}
+.itc-partido{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:14px;background:var(--bgc);border:1px solid var(--line);padding:10px 16px;margin-bottom:8px;border-radius:var(--r);}
 .itc-partido .eq{font-weight:500;overflow-wrap:anywhere;}.itc-partido .eq.v{text-align:right;}
 .itc-partido .vs{min-width:68px;text-align:center;font:500 12px/1 var(--mono);color:var(--tx3);}
-.itc-campeon{display:flex;flex-direction:column;gap:6px;padding:20px 24px;margin:6px 0 20px;background:var(--ac);color:var(--aco);}
+.itc-campeon{display:flex;flex-direction:column;gap:6px;padding:20px 24px;margin:6px 0 20px;background:var(--ac);color:var(--aco);border-radius:var(--rg);animation:itc-pop .45s var(--ease) both;}
 .itc-campeon-et{font:500 12px/1 var(--mono);}
 .itc-campeon-nom{font-family:var(--display);font-weight:500;font-size:clamp(1.8rem,6vw,2.8rem);line-height:1;text-transform:uppercase;}
 
 /* Tabla de posiciones */
-.itc-tabla-wrap{overflow-x:auto;border:1px solid var(--line);}
+.itc-tabla-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--rg);}
 table.itc-tabla{width:100%;border-collapse:collapse;min-width:360px;}
 .itc-tabla th{font:500 12px/1 var(--mono);color:var(--tx2);text-align:center;padding:12px 8px;border-bottom:1px solid var(--wire);background:var(--bgc);}
 .itc-tabla th.eqc{text-align:left;padding-left:16px;}
@@ -161,25 +175,25 @@ table.itc-tabla{width:100%;border-collapse:collapse;min-width:360px;}
 .itc-tabla td.eqc{text-align:left;position:sticky;left:0;padding-left:12px;font-family:'Inter',sans-serif;}
 .itc-tabla tr.cl td.eqc{box-shadow:inset 3px 0 0 var(--ac);}
 .itc-tabla .eqw{display:flex;align-items:center;gap:12px;}
-.itc-tabla .rk{display:inline-grid;place-items:center;width:26px;height:26px;flex:none;font:700 13px/1 var(--mono);background:var(--bga);color:var(--tx2);border:1px solid var(--line);}
+.itc-tabla .rk{display:inline-grid;place-items:center;width:26px;height:26px;flex:none;border-radius:8px;font:700 13px/1 var(--mono);background:var(--bga);color:var(--tx2);border:1px solid var(--line);}
 .itc-tabla .r1{background:var(--ac);color:var(--aco);border-color:var(--ac);}
 .itc-tabla .nm{font-weight:600;font-size:.95rem;color:var(--tx);white-space:nowrap;}
 .itc-tabla .cu{font:500 11px/1.3 var(--mono);color:var(--tx3);margin-top:2px;}
 .itc-tabla td.pts{font-weight:700;font-size:16px;color:var(--ac);}
 .itc-tabla th.pts{color:var(--ac);}
 .itc-leyenda{display:flex;align-items:center;gap:8px;margin:10px 2px 0;font:500 12px/1 var(--mono);color:var(--tx2);}
-.itc-leyenda i{width:10px;height:10px;background:var(--ac);}
+.itc-leyenda i{width:10px;height:10px;background:var(--ac);border-radius:3px;}
 
 /* Cuadro final: diagrama plano */
 .itc-llave-wrap{overflow-x:auto;padding:12px 0 20px;}
 .itc-llave{display:flex;gap:28px;align-items:stretch;min-height:300px;}
-.itc-llave .col{flex:1 1 180px;min-width:170px;display:flex;flex-direction:column;}
+.itc-llave .col{flex:1 1 180px;min-width:170px;display:flex;flex-direction:column;animation:itc-sube .45s var(--ease) both;}
 .itc-ronda{height:34px;display:flex;justify-content:center;align-items:flex-start;}
-.itc-tag{display:inline-block;background:var(--ac);color:var(--aco);font:500 12px/1 var(--mono);padding:6px 8px;}
+.itc-tag{border-radius:6px;display:inline-block;background:var(--ac);color:var(--aco);font:500 12px/1 var(--mono);padding:6px 8px;}
 .itc-llave .cuerpo{flex:1;display:flex;flex-direction:column;}
 .itc-llave .par{flex:1;display:flex;flex-direction:column;position:relative;}
 .itc-llave .mw{flex:1;display:flex;align-items:center;padding:6px 0;position:relative;}
-.itc-m{width:100%;background:var(--bgc);border:1px solid var(--line);}
+.itc-m{width:100%;background:var(--bgc);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;}
 .itc-m.dec{background:var(--blush);border-color:var(--wire);}
 .itc-m .t{display:grid;grid-template-columns:1fr auto;align-items:stretch;}
 .itc-m .t+.t{border-top:1px solid var(--line);}
@@ -209,11 +223,10 @@ table.itc-tabla{width:100%;border-collapse:collapse;min-width:360px;}
 .itc-llave .mw.g::after,.itc-llave .par>.mw.g::before,.itc-llave .par.g::after{background:var(--ac);}
 .itc-hint{display:none;color:var(--tx3);font:500 12px/1 var(--mono);margin:0 0 6px;}
 
-/* Pie institucional */
-.itc-pie{margin-top:48px;padding:20px 0 8px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--tx2);font-size:.85rem;}
-.itc-pie b{color:var(--tx);font-weight:600;}
-.itc-pie span{font-family:var(--mono);font-size:12px;}
-
+@keyframes itc-sube{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes itc-pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+@keyframes itc-aviso{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.itc-tabla tbody tr{animation:itc-sube .35s var(--ease) both;}
 @media (max-width:900px){.block-container{padding:1rem 1rem 3rem;}.itc-hint{display:block;}}
 @media (max-width:640px){
   .block-container{padding:.8rem .75rem 3rem;}
@@ -225,8 +238,15 @@ table.itc-tabla{width:100%;border-collapse:collapse;min-width:360px;}
   button[data-baseweb="tab"]{padding:12px 0;}
   .stApp input,.stApp textarea{font-size:16px;}
 }
-@media (prefers-reduced-motion:reduce){.itc-fondo i{animation:none!important;}.itc-fondo i:first-child{opacity:1;}*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.itc-fondo i:first-child{opacity:1;}}
 """
+
+
+_ESCALONADO = "".join(
+    f".itc-tabla tbody tr:nth-child({n}){{animation-delay:{n * 35}ms;}}" for n in range(1, 13)
+) + "".join(
+    f".itc-llave .col:nth-child({n}){{animation-delay:{n * 70}ms;}}" for n in range(1, 10)
+)
 
 
 def _variables(t: dict) -> str:
@@ -234,7 +254,7 @@ def _variables(t: dict) -> str:
 
 
 def aplicar() -> None:
-    st.markdown(f"<style>{_FUENTES}{_variables(actual())}{_ESTILO}</style>", unsafe_allow_html=True)
+    st.markdown(f"<style>{_FUENTES}{_variables(actual())}{_ESTILO}{_ESCALONADO}</style>", unsafe_allow_html=True)
 
 
 @st.cache_data(show_spinner=False)
@@ -267,24 +287,36 @@ def fondos(directorio: str | Path | None = None) -> tuple[str, ...]:
 
 
 def _rueda(uris: tuple[str, ...], segundos: int = 6) -> str:
-    """Fundido cruzado en CSS puro: sin JavaScript, sin dependencias, sin reruns."""
+    """Fundido cruzado con zoom lento y barras de progreso, en CSS puro.
+
+    Sin JavaScript, sin dependencias y sin reruns. Las barras de abajo a la
+    derecha dicen cuántas imágenes hay y cuál toca, para que el movimiento se
+    entienda como una galería y no como un parpadeo.
+    """
     if not uris:
         return ""
     n, ciclo = len(uris), len(uris) * segundos
     entra = 1.2 / ciclo * 100  # ~1,2 s de fundido, en % del ciclo
     visible = 100 / n
+    fin = visible + entra
     estilo = (
-        f"@keyframes itc-rueda{{0%{{opacity:0}}{entra:.2f}%{{opacity:1}}"
-        f"{visible:.2f}%{{opacity:1}}{visible + entra:.2f}%{{opacity:0}}100%{{opacity:0}}}}"
+        f"@keyframes itc-rueda{{0%{{opacity:0;transform:scale(1)}}{entra:.2f}%{{opacity:1}}"
+        f"{visible:.2f}%{{opacity:1}}{fin:.2f}%{{opacity:0;transform:scale(1.07)}}"
+        f"100%{{opacity:0;transform:scale(1.07)}}}}"
+        f"@keyframes itc-llena{{0%{{transform:scaleX(0)}}{visible:.2f}%{{transform:scaleX(1)}}"
+        f"{visible + .01:.2f}%{{transform:scaleX(0)}}100%{{transform:scaleX(0)}}}}"
     )
-    capas = ""
+    capas = barras = ""
     for i, uri in enumerate(uris):
+        retraso = i * segundos
         estilo += (
             f".itc-fondo i:nth-child({i + 1}){{background-image:url({uri});"
-            f"animation:itc-rueda {ciclo}s linear {i * segundos}s infinite;}}"
+            f"animation:itc-rueda {ciclo}s linear {retraso}s infinite;}}"
+            f".itc-prog b:nth-child({i + 1})::after{{animation:itc-llena {ciclo}s linear {retraso}s infinite;}}"
         )
         capas += "<i></i>"
-    return f"<style>{estilo}</style><div class='itc-fondo'>{capas}</div>"
+        barras += "<b></b>"
+    return f"<style>{estilo}</style><div class='itc-fondo'>{capas}</div><div class='itc-prog'>{barras}</div>"
 
 
 def hero(titulo: str, subtitulo: str, chips: tuple[str, ...] = (), fondos: tuple[str, ...] = ()) -> None:
@@ -302,12 +334,9 @@ def seccion(texto: str) -> None:
     st.markdown(f'<div class="itc-seccion">{texto}</div>', unsafe_allow_html=True)
 
 
-def pie() -> None:
-    st.markdown(
-        f'<div class="itc-pie"><div><b>ITC Deportes</b><br>{INSTITUCION} · '
-        "Establecimiento Público de Educación Superior</div><span>2026</span></div>",
-        unsafe_allow_html=True,
-    )
+def etiqueta(texto: str) -> None:
+    """Rótulo pequeño de una agrupación, p. ej. «Competiciones» en la barra lateral."""
+    st.markdown(f'<div class="itc-label">{html.escape(texto)}</div>', unsafe_allow_html=True)
 
 
 def partido(local: str, visitante: str, marcador=None) -> None:
