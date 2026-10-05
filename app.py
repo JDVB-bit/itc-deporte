@@ -129,56 +129,51 @@ def barra_lateral(yo: Identidad):
             tema.alternar()
             st.rerun()
 
-        st.markdown('<div class="itc-side-card">', unsafe_allow_html=True)
-        if yo is ANONIMO:
-            st.markdown(
-                '<div class="itc-side-user">'
-                '<div class="itc-side-avatar">V</div>'
-                '<div><div class="itc-side-name">Visitante</div></div></div>',
-                unsafe_allow_html=True,
-            )
-            st.caption("Puedes consultar tablas, calendarios y cuadros.")
-            with st.expander("🔐 Iniciar sesión"):
-                with st.form("acceso"):
-                    correo = st.text_input("Correo")
-                    contrasena = st.text_input("Contraseña", type="password")
-                    if st.form_submit_button("Entrar") and correo:
-                        sesion = SERVICIOS.autenticador.iniciar_sesion(
-                            correo, contrasena
-                        )
-                        if sesion:
-                            st.session_state.token = sesion.token
-                            st.rerun()
-                        else:
-                            st.error("Correo o contraseña incorrectos.")
-        else:
-            etiqueta_rol = _papel(yo)
-            st.markdown(
-                '<div class="itc-side-user">'
-                f'<div class="itc-side-avatar">{(yo.email or "?")[0].upper()}</div>'
-                f'<div><div class="itc-side-name">{yo.email or yo.usuario_id}</div></div></div>',
-                unsafe_allow_html=True,
-            )
-            st.caption(etiqueta_rol)
-            if st.button("Cerrar sesión"):
-                st.session_state.token = None
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            if yo is ANONIMO:
+                st.markdown(
+                    '<div class="itc-side-user">'
+                    '<div class="itc-side-avatar">V</div>'
+                    '<div><div class="itc-side-name">Visitante</div></div></div>',
+                    unsafe_allow_html=True,
+                )
+                st.caption("Puedes consultar tablas, calendarios y cuadros.")
+                with st.expander("🔐 Iniciar sesión"):
+                    with st.form("acceso"):
+                        correo = st.text_input("Correo")
+                        contrasena = st.text_input("Contraseña", type="password")
+                        if st.form_submit_button("Entrar") and correo:
+                            sesion = SERVICIOS.autenticador.iniciar_sesion(
+                                correo, contrasena
+                            )
+                            if sesion:
+                                st.session_state.token = sesion.token
+                                st.rerun()
+                            else:
+                                st.error("Correo o contraseña incorrectos.")
+            else:
+                etiqueta_rol = _papel(yo)
+                st.markdown(
+                    '<div class="itc-side-user">'
+                    f'<div class="itc-side-avatar">{(yo.email or "?")[0].upper()}</div>'
+                    f'<div><div class="itc-side-name">{yo.email or yo.usuario_id}</div></div></div>',
+                    unsafe_allow_html=True,
+                )
+                st.caption(etiqueta_rol)
+                if st.button("Cerrar sesión"):
+                    st.session_state.token = None
+                    st.rerun()
 
-        st.markdown('<div class="itc-side-card">', unsafe_allow_html=True)
-        tema.seccion("🏆 Competiciones")
+        tema.etiqueta("Competiciones")
         competiciones = SERVICIOS.competiciones.listar()
         if not competiciones:
-            st.markdown('</div>', unsafe_allow_html=True)
             return None
-        seleccion = st.radio(
+        return st.radio(
             "Competición",
             competiciones,
             format_func=lambda c: f"{c.deporte.icono} {c.nombre}",
             label_visibility="collapsed",
         )
-        st.markdown('</div>', unsafe_allow_html=True)
-        return seleccion
 
 
 def main() -> None:
@@ -191,7 +186,6 @@ def main() -> None:
         for c in (
             competicion and f"{competicion.deporte.icono} {competicion.deporte.nombre}",
             competicion and competicion.temporada and f"Temporada {competicion.temporada}",
-            competicion and competicion.estado.value,
         )
         if c
     )
@@ -208,7 +202,6 @@ def main() -> None:
         # pestaña vive dentro de una competición, así que sobre una base vacía
         # un administrador no tenía por dónde empezar.
         vistas.nueva_competicion(SERVICIOS, yo)
-        tema.pie()
         return
 
     st.markdown(f"## {competicion.deporte.icono} {competicion.nombre}")
@@ -257,7 +250,6 @@ def main() -> None:
     if crea:
         with abiertas["➕ Nueva competición"]:
             vistas.nueva_competicion(SERVICIOS, yo)
-    tema.pie()
 
 
 try:
