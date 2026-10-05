@@ -86,6 +86,51 @@ class ServicioDeCuadroFinal:
         self._persistir(competicion_id, fase_id, bracket)
         return bracket
 
+    # ── Administración del cuadro ───────────────────────────────────────────
+    # Solo el Admin: un registrador carga resultados, no rehace el cuadro.
+
+    def eliminar(
+        self, actor: Identidad, competicion_id: CompeticionId, fase_id: FaseId
+    ) -> None:
+        """Borra el cuadro entero, con sus resultados. Se puede volver a generar."""
+        self._politica.exigir(
+            actor, Accion.ADMINISTRAR_COMPETICION, competicion_id
+        )
+        self.actual(competicion_id, fase_id)  # falla claro si no hay cuadro
+        self._enfrentamientos.eliminar_de_fase(fase_id)
+
+    def borrar_resultado(
+        self,
+        actor: Identidad,
+        competicion_id: CompeticionId,
+        fase_id: FaseId,
+        ronda: int,
+        posicion: int,
+    ) -> Bracket:
+        """Quita el resultado de una casilla y todo lo que dependía de él."""
+        self._politica.exigir(
+            actor, Accion.ADMINISTRAR_COMPETICION, competicion_id
+        )
+        bracket = self.actual(competicion_id, fase_id).sin_resultado(ronda, posicion)
+        self._persistir(competicion_id, fase_id, bracket)
+        return bracket
+
+    def intercambiar(
+        self,
+        actor: Identidad,
+        competicion_id: CompeticionId,
+        fase_id: FaseId,
+        uno: str,
+        otro: str,
+    ) -> Bracket:
+        """Cambia de sitio a dos participantes de la primera ronda."""
+        self._politica.exigir(
+            actor, Accion.ADMINISTRAR_COMPETICION, competicion_id
+        )
+        bracket = self.actual(competicion_id, fase_id).intercambiar(uno, otro)
+        self._persistir(competicion_id, fase_id, bracket)
+        return bracket
+
     # ── Interno ─────────────────────────────────────────────────────────────
 
     def _eliminatoria(
