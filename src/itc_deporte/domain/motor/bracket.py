@@ -174,6 +174,57 @@ class Bracket:
         rondas[ronda][posicion] = replace(casilla, marcador=marcador)
         return Bracket(_propagar(tuple(tuple(r) for r in rondas)))
 
+    def sin_resultado(self, ronda: int, posicion: int) -> Bracket:
+        """Devuelve un cuadro nuevo sin el resultado de esa casilla, ya propagado.
+
+        Quitar un resultado deshace lo que dependía de él: el ganador sale de la
+        ronda siguiente y, en cascada, también lo que se hubiera jugado después.
+        """
+        casilla = self.slot(ronda, posicion)
+        if casilla.marcador is None:
+            raise ErrorDeDominio(
+                f"La casilla {posicion} de la ronda {ronda} no tiene resultado "
+                "que borrar."
+            )
+        rondas = [list(r) for r in self.rondas]
+        rondas[ronda][posicion] = replace(casilla, marcador=None)
+        return Bracket(_propagar(tuple(tuple(r) for r in rondas)))
+
+    def intercambiar(self, uno: ParticipanteId, otro: ParticipanteId) -> Bracket:
+        """Cambia de lugar a dos participantes de la primera ronda.
+
+        Solo se puede mientras no se haya jugado nada: con resultados cargados,
+        mover a alguien los dejaría atribuidos a quien no los jugó. Quien quiera
+        corregir un cuadro ya empezado borra antes los resultados.
+        """
+        if uno == otro:
+            raise ErrorDeDominio("Hay que elegir a dos participantes distintos.")
+        if any(c.marcador is not None for ronda in self.rondas for c in ronda):
+            raise ErrorDeDominio(
+                "El cuadro ya tiene resultados: bórralos antes de cambiar a los "
+                "participantes de sitio."
+            )
+        presentes = {
+            p
+            for c in self.rondas[0]
+            for p in (c.local, c.visitante)
+            if p is not None
+        }
+        for participante in (uno, otro):
+            if participante not in presentes:
+                raise ErrorDeDominio(
+                    f"{participante!r} no está en la primera ronda del cuadro."
+                )
+
+        def cambiar(p):
+            return otro if p == uno else uno if p == otro else p
+
+        primera = tuple(
+            replace(c, local=cambiar(c.local), visitante=cambiar(c.visitante))
+            for c in self.rondas[0]
+        )
+        return Bracket(_propagar((primera, *self.rondas[1:])))
+
     def campeon(self) -> ParticipanteId | None:
         return self.rondas[-1][0].ganador()
 
