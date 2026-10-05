@@ -389,7 +389,7 @@ class TestInscribir:
         el hueco mostraría la lista de antes de inscribir y parecería que la
         acción no hizo nada."""
         app = abrir(como=muestra.ADMIN)
-        antes = len(app.dataframe[1].value)
+        antes = len(app.dataframe[-1].value)
         app = self._inscribir(app, "Equipo Nuevo")
         assert len(app.dataframe[0].value) == antes + 1
 
