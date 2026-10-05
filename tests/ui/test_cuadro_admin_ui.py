@@ -193,3 +193,83 @@ class TestElDiseno:
         app = next(b for b in app.sidebar.button if b.label == "Cambiar tema").click().run()
         assert not app.exception
         assert app.session_state.tema != antes
+
+
+class TestRediseñoDeLaInterfaz:
+    """Lo que se pidió quitar, fijar y mejorar en el menú, los cuadros y el movimiento."""
+
+    def _hero(self, app) -> str:
+        return next(m.value for m in app.markdown if m.value.startswith('<div class="itc-hero">'))
+
+    def test_el_encabezado_no_muestra_el_estado_de_la_competicion(self, montar):
+        montar(muestra.con_liga_en_marcha())
+        hero = self._hero(abrir())
+        assert "itc-chip" in hero  # deporte y temporada siguen
+        assert "Borrador" not in hero
+
+    def test_ya_no_hay_pie(self, montar):
+        montar(muestra.con_liga_en_marcha())
+        pintado = textos(abrir())
+        assert "itc-pie" not in pintado and "Establecimiento Público" not in pintado
+
+    def test_la_rueda_sigue_y_ahora_marca_su_progreso(self, montar):
+        montar(muestra.con_liga_en_marcha())
+        hero = self._hero(abrir())
+        assert "itc-rueda" in hero and "itc-prog" in hero and "itc-llena" in hero
+
+    def test_una_barra_de_progreso_por_imagen(self, montar):
+        from itc_deporte.ui import tema
+
+        uris = ("data:image/jpeg;base64,AA", "data:image/jpeg;base64,BB", "data:image/jpeg;base64,CC")
+        html = tema._rueda(uris)
+        assert html.count("<i></i>") == 3 and html.count("<b></b>") == 3
+
+    def test_la_barra_lateral_no_deja_cajas_huerfanas(self, montar):
+        """Abrir un `<div>` en un markdown y cerrarlo en otro no envuelve nada:
+        dejaba cuadros vacíos en el menú."""
+        montar(muestra.con_liga_en_marcha())
+        sueltos = [m.value.strip() for m in abrir().sidebar.markdown]
+        assert '<div class="itc-side-card">' not in sueltos and "</div>" not in sueltos
+
+    def test_el_menu_rotula_las_competiciones_sin_adornos(self, montar):
+        montar(muestra.con_liga_en_marcha())
+        assert "Competiciones" in " ".join(m.value for m in abrir().sidebar.markdown)
+
+    def test_el_menu_sigue_listando_las_competiciones(self, montar):
+        montar(muestra.con_liga_en_marcha())
+        assert len(abrir().sidebar.radio[0].options) >= 1
+
+
+class TestElCssDelRediseño:
+    @pytest.fixture
+    def css(self):
+        from itc_deporte.ui import tema
+
+        return tema._ESTILO + tema._ESCALONADO
+
+    def test_la_barra_lateral_no_se_puede_redimensionar(self, css):
+        assert 'stSidebarResizeHandle"]{display:none' in css
+
+    def test_las_cajas_van_redondeadas(self, css):
+        assert "--r:10px" in css and "--rg:16px" in css
+        # Solo quedan rectas las pestañas, que son un subrayado y no una caja.
+        rectos = [t for t in css.split("}") if "border-radius:0" in t]
+        assert len(rectos) == 1 and 'data-baseweb="tab"' in rectos[0]
+
+    def test_los_botones_responden_al_pulsarse(self, css):
+        assert ":active" in css and "scale(.96)" in css
+
+    def test_la_pestaña_activa_se_subraya_con_movimiento(self, css):
+        assert "scaleX(1)" in css and "transform-origin:left" in css
+
+    def test_los_avisos_entran_con_movimiento(self, css):
+        assert "itc-aviso" in css
+
+    def test_las_filas_y_las_rondas_entran_escalonadas(self, css):
+        assert "tr:nth-child(5)" in css and ".col:nth-child(3)" in css
+
+    def test_se_respeta_reducir_movimiento(self, css):
+        assert "prefers-reduced-motion:reduce" in css and "animation:none!important" in css
+
+    def test_no_queda_el_estilo_del_pie(self, css):
+        assert "itc-pie" not in css
