@@ -1,0 +1,16 @@
+ITC Deportes - portada de entrada
+
+1. Descomprime este zip en la RAIZ del repositorio (donde esta app.py).
+   Acepta reemplazar app.py.
+2. Desde la raiz, ejecuta:   python parche_tests.py
+   (ajusta tests/ui/test_app.py y tests/ui/test_administracion.py)
+3. Prueba:   venv\Scripts\python -m pytest tests/ui   y luego   streamlit run app.py
+4. Puedes borrar parche_tests.py despues de usarlo.
+
+Archivos:
+  NUEVO       src/itc_deporte/ui/inicio.py
+  REEMPLAZA   app.py
+  NUEVO       tests/ui/test_inicio.py
+  TEMPORAL    parche_tests.py
+
+Opcional: static/portada.jpg se usa como foto de fondo de la portada.
