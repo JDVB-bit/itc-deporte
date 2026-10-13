@@ -1,191 +1,182 @@
-"""Generar y avanzar el cuadro final.
+"""El cuadro final, dibujado como un diagrama de torneo.
 
-El cuadro se guarda como enfrentamientos con `ronda` y `slot`, así que vive en
-la misma tabla que el resto de partidos en lugar de en una tabla `llaves`
-aparte. La propagación ocurre en memoria —el motor devuelve el cuadro entero ya
-resuelto— y se persiste de una vez, en lugar de con un UPDATE por casilla.
+El cuadro se pinta de una sola vez como HTML (nodos cuadrados, conectores de
+1 px en ángulo recto, el acento solo en lo que avanza) y la carga de resultados
+vive aparte, en un desplegable: los formularios de Streamlit no pueden ir
+dentro de un bloque de HTML.
+
+Las reglas no cambian. Aquí se pide y se muestra; los permisos y la propagación
+siguen en `aplicacion/` y `domain/`.
 """
 
 from __future__ import annotations
 
-from ...domain.enfrentamiento import Enfrentamiento, Marcador
-from ...domain.identidades import CompeticionId, FaseId
-from ...domain.competicion import FaseEliminatoria
-from ...domain.motor.bracket import Bracket, SlotDeBracket
-from ..errores import NoEncontrado, OperacionInvalida
-from ..permisos import Accion, Identidad, Politica
-from ..puertos import RepositorioDeCompeticiones, RepositorioDeEnfrentamientos
-from .clasificacion import ServicioDeClasificacion
+import html
+
+import streamlit as st
+
+from ..aplicacion.errores import ErrorDeAplicacion
+from ..aplicacion.permisos import Accion, Identidad
+from ..domain.competicion import FaseDeGrupos
+from ..domain.enfrentamiento import Marcador
+from .vistas import _ejecutar
 
 
-class ServicioDeCuadroFinal:
-    def __init__(
-        self,
-        competiciones: RepositorioDeCompeticiones,
-        enfrentamientos: RepositorioDeEnfrentamientos,
-        clasificacion: ServicioDeClasificacion,
-        politica: Politica,
-    ) -> None:
-        self._competiciones = competiciones
-        self._enfrentamientos = enfrentamientos
-        self._clasificacion = clasificacion
-        self._politica = politica
+def _siglas(nombre: str) -> str:
+    letras = "".join(c for c in nombre if c.isalnum())
+    return (letras[:3] or "–").upper()
 
-    def generar(
-        self,
-        actor: Identidad,
-        competicion_id: CompeticionId,
-        fase_id: FaseId,
-        desde_fase: FaseId,
-    ) -> Bracket:
-        """Arma el cuadro con los mejores clasificados de `desde_fase`."""
-        self._politica.exigir(actor, Accion.SORTEAR, competicion_id)
-        fase = self._eliminatoria(competicion_id, fase_id)
-        tabla = self._clasificacion.de_fase(competicion_id, desde_fase)
-        clasificados = [fila.participante_id for fila in tabla[: fase.cupos]]
-        if len(clasificados) < 2:
-            raise OperacionInvalida(
-                f"Hacen falta al menos 2 clasificados para el cuadro, hay "
-                f"{len(clasificados)}."
-            )
-        bracket = Bracket.desde_clasificados(clasificados)
-        self._persistir(competicion_id, fase_id, bracket)
-        return bracket
 
-    def actual(self, competicion_id: CompeticionId, fase_id: FaseId) -> Bracket:
-        """Reconstruye el cuadro a partir de lo guardado."""
-        self._eliminatoria(competicion_id, fase_id)
-        partidos = self._enfrentamientos.de_fase(fase_id)
-        if not partidos:
-            raise NoEncontrado(f"La fase {fase_id!r} todavía no tiene cuadro.")
-        return _reconstruir(partidos)
-
-    def registrar(
-        self,
-        actor: Identidad,
-        competicion_id: CompeticionId,
-        fase_id: FaseId,
-        ronda: int,
-        posicion: int,
-        marcador: Marcador,
-    ) -> Bracket:
-        """Carga un resultado y persiste el cuadro ya propagado."""
-        self._politica.exigir(
-            actor, Accion.REGISTRAR_RESULTADO, competicion_id
+def _lado(participante, nombres, ganador, valor, es_bye: bool) -> str:
+    if participante is None:
+        texto = "–" if es_bye else "por definir"
+        return (
+            '<div class="bk-eq vacio"><span class="bk-id">–</span>'
+            f'<span class="bk-n">{texto}</span><span class="bk-s"></span></div>'
         )
-        # Por el mismo motivo que en `ServicioDeResultados`: un marcador que la
-        # puntuación no admite entraba y reventaba después al calcular la tabla.
-        # El cuadro comparte tabla y reglas con la fase de grupos.
-        competicion = self._competiciones.obtener(competicion_id)
-        if competicion is None:
-            raise NoEncontrado(f"No existe la competición {competicion_id!r}.")
-        competicion.reglas.exigir_que_admita(marcador)
-        bracket = self.actual(competicion_id, fase_id).con_resultado(
-            ronda, posicion, marcador
-        )
-        self._persistir(competicion_id, fase_id, bracket)
-        return bracket
-
-    # ── Administración del cuadro ───────────────────────────────────────────
-    # Solo el Admin: un registrador carga resultados, no rehace el cuadro.
-
-    def eliminar(
-        self, actor: Identidad, competicion_id: CompeticionId, fase_id: FaseId
-    ) -> None:
-        """Borra el cuadro entero, con sus resultados. Se puede volver a generar."""
-        self._politica.exigir(
-            actor, Accion.ADMINISTRAR_COMPETICION, competicion_id
-        )
-        self.actual(competicion_id, fase_id)  # falla claro si no hay cuadro
-        self._enfrentamientos.eliminar_de_fase(fase_id)
-
-    def borrar_resultado(
-        self,
-        actor: Identidad,
-        competicion_id: CompeticionId,
-        fase_id: FaseId,
-        ronda: int,
-        posicion: int,
-    ) -> Bracket:
-        """Quita el resultado de una casilla y todo lo que dependía de él."""
-        self._politica.exigir(
-            actor, Accion.ADMINISTRAR_COMPETICION, competicion_id
-        )
-        bracket = self.actual(competicion_id, fase_id).sin_resultado(ronda, posicion)
-        self._persistir(competicion_id, fase_id, bracket)
-        return bracket
-
-    def intercambiar(
-        self,
-        actor: Identidad,
-        competicion_id: CompeticionId,
-        fase_id: FaseId,
-        uno: str,
-        otro: str,
-    ) -> Bracket:
-        """Cambia de sitio a dos participantes de la primera ronda."""
-        self._politica.exigir(
-            actor, Accion.ADMINISTRAR_COMPETICION, competicion_id
-        )
-        bracket = self.actual(competicion_id, fase_id).intercambiar(uno, otro)
-        self._persistir(competicion_id, fase_id, bracket)
-        return bracket
-
-    # ── Interno ─────────────────────────────────────────────────────────────
-
-    def _eliminatoria(
-        self, competicion_id: CompeticionId, fase_id: FaseId
-    ) -> FaseEliminatoria:
-        competicion = self._competiciones.obtener(competicion_id)
-        if competicion is None:
-            raise NoEncontrado(f"No existe la competición {competicion_id!r}.")
-        fase = competicion.fase(fase_id)
-        if not isinstance(fase, FaseEliminatoria):
-            raise OperacionInvalida(f"La fase {fase_id!r} no es una eliminatoria.")
-        return fase
-
-    def _persistir(
-        self, competicion_id: CompeticionId, fase_id: FaseId, bracket: Bracket
-    ) -> None:
-        partidos = [
-            _a_enfrentamiento(competicion_id, fase_id, casilla)
-            for ronda in bracket.rondas
-            for casilla in ronda
-        ]
-        self._enfrentamientos.eliminar_de_fase(fase_id)
-        self._enfrentamientos.guardar_muchos(partidos)
-
-
-def _a_enfrentamiento(
-    competicion_id: CompeticionId, fase_id: FaseId, casilla: SlotDeBracket
-) -> Enfrentamiento:
-    partido = Enfrentamiento(
-        id=f"{fase_id}:r{casilla.ronda}:{casilla.posicion}",
-        local=casilla.local,
-        visitante=casilla.visitante,
-        competicion_id=competicion_id,
-        fase_id=fase_id,
-        ronda=casilla.ronda,
-        slot=casilla.posicion,
+    nombre = nombres.get(participante, participante)
+    gana = ganador is not None and participante == ganador
+    return (
+        f'<div class="bk-eq{" gana" if gana else ""}">'
+        f'<span class="bk-id">{_siglas(nombre)}</span>'
+        f'<span class="bk-n">{html.escape(nombre)}</span>'
+        f'<span class="bk-s">{"" if valor is None else valor}</span></div>'
     )
-    return partido.finalizar(casilla.marcador) if casilla.marcador else partido
 
 
-def _reconstruir(partidos: tuple[Enfrentamiento, ...]) -> Bracket:
-    por_ronda: dict[int, list[Enfrentamiento]] = {}
-    for partido in partidos:
-        por_ronda.setdefault(partido.ronda, []).append(partido)
-    rondas = tuple(
-        tuple(
-            SlotDeBracket(
-                ronda=p.ronda,
-                posicion=p.slot,
-                local=p.local,
-                visitante=p.visitante,
-                marcador=p.marcador,
-            )
-            for p in sorted(por_ronda[numero], key=lambda p: p.slot)
-        )
-        for numero in sorted(por_ronda)
+def _partido(casilla, nombres) -> str:
+    ganador = casilla.ganador()
+    marcador = casilla.marcador
+    local = marcador.local if marcador else None
+    visitante = marcador.visitante if marcador else None
+    nota = ""
+    if casilla.es_bye:
+        nota = "pasa sin jugar"
+    elif casilla.espera_rival:
+        nota = "esperando rival"
+    return (
+        f'<div class="bk-m{" ganado" if ganador else ""}">'
+        + _lado(casilla.local, nombres, ganador, local, casilla.es_bye)
+        + _lado(casilla.visitante, nombres, ganador, visitante, casilla.es_bye)
+        + (f'<div class="bk-nota">{nota}</div>' if nota else "")
+        + "</div>"
     )
-    return Bracket(rondas)
+
+
+def _html_del_cuadro(bracket, nombres) -> str:
+    """Una columna por ronda. Sin saltos de línea: Markdown cortaría el bloque."""
+    ultima = bracket.total_rondas - 1
+    columnas = []
+    for numero, ronda in enumerate(bracket.rondas):
+        etiqueta = html.escape(bracket.nombre_de(numero))
+        if numero == ultima:
+            cuerpo = (
+                '<div class="bk-par fin"><div class="bk-slot">'
+                f"{_partido(ronda[0], nombres)}</div></div>"
+            )
+        else:
+            pares = []
+            for i in range(0, len(ronda), 2):
+                par = ronda[i : i + 2]
+                avanza = all(c.ganador() is not None for c in par)
+                slots = "".join(
+                    f'<div class="bk-slot">{_partido(c, nombres)}</div>' for c in par
+                )
+                pares.append(f'<div class="bk-par{" avanza" if avanza else ""}">{slots}</div>')
+            cuerpo = "".join(pares)
+        columnas.append(
+            f'<div class="bk-col"><div class="bk-tag">{etiqueta}</div>'
+            f'<div class="bk-body">{cuerpo}</div></div>'
+        )
+    return f'<div class="bk">{"".join(columnas)}</div>'
+
+
+def cuadro_final(servicios, competicion, fase, actor: Identidad) -> None:
+    nombres = {
+        p.id: p.nombre for p in servicios.inscripciones.inscritos(competicion.id)
+    }
+    puede_generar = servicios.politica.puede(actor, Accion.SORTEAR, competicion.id)
+    puede_registrar = servicios.politica.puede(
+        actor, Accion.REGISTRAR_RESULTADO, competicion.id
+    )
+
+    try:
+        bracket = servicios.cuadro.actual(competicion.id, fase.id)
+    except ErrorDeAplicacion:
+        st.info("El cuadro final todavía no se ha generado.")
+        if puede_generar:
+            grupos = next(
+                (f for f in competicion.fases_ordenadas if isinstance(f, FaseDeGrupos)),
+                None,
+            )
+            if grupos and st.button("Generar cuadro con los clasificados"):
+                if _ejecutar(
+                    servicios.cuadro.generar,
+                    actor,
+                    competicion.id,
+                    fase.id,
+                    desde_fase=grupos.id,
+                    exito="Cuadro generado.",
+                ):
+                    st.rerun()
+        return
+
+    campeon = bracket.campeon()
+    if campeon:
+        nombre = html.escape(nombres.get(campeon, campeon))
+        st.markdown(
+            '<div class="bk-campeon"><span class="bk-tag">Campeón</span>'
+            f'<span class="bk-nombre">{nombre}</span></div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown(_html_del_cuadro(bracket, nombres), unsafe_allow_html=True)
+
+    if puede_registrar:
+        _carga_de_resultados(servicios, competicion, fase, bracket, nombres, actor)
+
+
+def _carga_de_resultados(servicios, competicion, fase, bracket, nombres, actor) -> None:
+    with st.expander("Cargar o corregir resultados"):
+        hay = False
+        for numero, ronda in enumerate(bracket.rondas):
+            for casilla in ronda:
+                if not casilla.listo:
+                    continue
+                hay = True
+                local = nombres.get(casilla.local, casilla.local)
+                visitante = nombres.get(casilla.visitante, casilla.visitante)
+                marcador = casilla.marcador
+                columnas = st.columns([7, 3])
+                columnas[0].markdown(
+                    f"`{bracket.nombre_de(numero)}` · **{local}** vs **{visitante}**"
+                )
+                with columnas[1].popover("Marcador", width="stretch"):
+                    with st.form(f"cuadro-{casilla.ronda}-{casilla.posicion}"):
+                        izquierda, derecha = st.columns(2)
+                        g1 = izquierda.number_input(
+                            "Local",
+                            min_value=0,
+                            value=marcador.local if marcador else 0,
+                            step=1,
+                        )
+                        g2 = derecha.number_input(
+                            "Visitante",
+                            min_value=0,
+                            value=marcador.visitante if marcador else 0,
+                            step=1,
+                        )
+                        if st.form_submit_button("Guardar", width="stretch"):
+                            if _ejecutar(
+                                servicios.cuadro.registrar,
+                                actor,
+                                competicion.id,
+                                fase.id,
+                                casilla.ronda,
+                                casilla.posicion,
+                                Marcador(int(g1), int(g2)),
+                                exito="Resultado registrado, cuadro propagado.",
+                            ):
+                                st.rerun()
+        if not hay:
+            st.caption("Todavía no hay cruces con sus dos contendientes.")
