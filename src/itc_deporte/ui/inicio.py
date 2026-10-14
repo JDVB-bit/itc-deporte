@@ -17,7 +17,7 @@ nada que descargar ni enlaces que se rompan. Si existen, se usan además:
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from functools import lru_cache
 from pathlib import Path
 
@@ -32,6 +32,32 @@ _CARPETAS = (Path.cwd() / "static", Path(__file__).resolve().parents[3] / "stati
 _LIMITE_BYTES = 2_000_000
 
 VISTAS = ("inicio", "intercursos")
+
+
+# ── Paleta ──────────────────────────────────────────────────────────────────
+
+_BASE = dict(
+    ac="#D4A017", achi="#FFD040", bg="#0A0A0A", bgc="#141414", tx="#F5F0E8",
+    tx2="#9A9080", tx3="#5A5550", grad="linear-gradient(135deg,#0A0A0A,#1A1200)",
+    ico="🎨", lbl="Cambiar tema",
+)
+
+
+def _paleta() -> dict:
+    """Los colores del tema activo, con valores de respaldo.
+
+    Así la portada no se rompe si `tema.actual()` cambia de forma o le falta
+    alguna clave.
+    """
+    try:
+        actual = tema.actual()
+    except Exception:
+        actual = {}
+    if is_dataclass(actual):
+        actual = asdict(actual)
+    if not isinstance(actual, dict):
+        actual = {}
+    return {**_BASE, **actual}
 
 
 # ── Navegación ──────────────────────────────────────────────────────────────
@@ -154,7 +180,7 @@ def _svg_como_imagen(svg: str, clase: str = "") -> str:
 
 
 def _figura(clave: str, clase: str = "") -> str:
-    color = tema.actual()["ac"]
+    color = _paleta()["ac"]
     svg = (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" '
         f'fill="none" stroke="{color}" stroke-width="3" stroke-linecap="round" '
@@ -164,7 +190,7 @@ def _figura(clave: str, clase: str = "") -> str:
 
 
 def _cancha() -> str:
-    color = tema.actual()["ac"]
+    color = _paleta()["ac"]
     svg = (
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400" '
         f'fill="none" stroke="{color}" stroke-width="3">{_MARCAS_DE_CANCHA}</svg>'
@@ -257,12 +283,6 @@ _CSS = """
   letter-spacing:1.5px;color:#0A0A0A}
 .st-key-tema_inicio button{border:1px solid var(--ac);border-radius:999px;background:transparent}
 .st-key-tema_inicio button p{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:1.05rem;color:var(--ac)}
-.st-key-logo_inicio button{border:none;background-color:transparent;background-repeat:no-repeat;
-  background-position:4px center;background-size:38px;justify-content:flex-start;padding:.5rem .5rem .5rem 52px;
-  min-height:3rem}
-.st-key-logo_inicio button p{font-family:'Bebas Neue',Impact,sans-serif;font-size:1.9rem;letter-spacing:4px;
-  color:var(--ac);line-height:1}
-.st-key-logo_inicio button:hover p{color:var(--achi)}
 :is(.in-dep,.in-bloque,.in-stat):focus-within{outline:2px solid var(--ac)}
 @media (max-width:640px){.in-hero{text-align:left}.in-logo{order:-1}.in-paso{padding-right:8px}}
 @media (prefers-reduced-motion:reduce){.in-logo img{animation:none}.in-dep{transition:none}}
@@ -275,15 +295,31 @@ def estilos() -> None:
     Se aplica en todas las vistas porque el logo vive en la barra lateral. Los
     colores salen del tema activo, así que cambiar de tema recolorea todo.
     """
-    t = tema.actual()
+    t = _paleta()
     variables = (
         f":root{{--ac:{t['ac']};--achi:{t['achi']};--bg:{t['bg']};--bgc:{t['bgc']};"
         f"--tx:{t['tx']};--tx2:{t['tx2']};--tx3:{t['tx3']};--grad:{t['grad']}}}"
     )
     logo = _logo()
-    marca = (
-        f".st-key-logo_inicio button{{background-image:url({logo})}}" if logo else ""
-    )
+    if logo:
+        # Con logo, el botón ES el logo: la imagen de fondo y la etiqueta oculta
+        # (sigue ahí para lectores de pantalla).
+        marca = (
+            ".st-key-logo_inicio button{background-color:transparent;border:none;"
+            f"background-image:url({logo});background-repeat:no-repeat;"
+            "background-position:center;background-size:contain;min-height:110px;"
+            "transition:transform .15s,filter .15s}"
+            ".st-key-logo_inicio button p{font-size:0;color:transparent}"
+            ".st-key-logo_inicio button:hover{transform:scale(1.04);filter:brightness(1.15)}"
+        )
+    else:
+        marca = (
+            ".st-key-logo_inicio button{background:transparent;border:none;"
+            "justify-content:flex-start;min-height:3rem}"
+            ".st-key-logo_inicio button p{font-family:'Bebas Neue',Impact,sans-serif;"
+            "font-size:1.9rem;letter-spacing:4px;color:var(--ac);line-height:1}"
+            ".st-key-logo_inicio button:hover p{color:var(--achi)}"
+        )
     st.markdown(
         f"<style>{_FUENTES}{variables}{_CSS}{marca}</style>", unsafe_allow_html=True
     )
@@ -413,7 +449,7 @@ def _boton_de_entrada(clave: str) -> None:
 
 def pagina() -> None:
     """Dibuja la portada completa."""
-    t = tema.actual()
+    t = _paleta()
     izquierda, derecha = st.columns([4, 1])
     izquierda.markdown(
         '<div class="in-nav"><b>ETITC</b> Bogotá, Colombia</div>', unsafe_allow_html=True
