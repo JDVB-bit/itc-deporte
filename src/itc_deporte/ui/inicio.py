@@ -272,10 +272,10 @@ _CSS = """
   color:var(--ac);display:block;line-height:1;margin-bottom:4px}
 .in-paso b{font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;color:var(--tx);display:block}
 .in-paso span{font-family:'DM Sans',sans-serif;font-size:.88rem;color:var(--tx2);line-height:1.5}
-.in-pie{font-family:'DM Sans',sans-serif;text-align:center;color:var(--tx3);font-size:.82rem;
-  margin:3rem 0 1rem;padding-top:1.2rem;border-top:1px solid var(--tx3)}
-.in-pie b{color:var(--ac);font-family:'Bebas Neue',sans-serif;letter-spacing:3px;font-size:1.1rem;font-weight:400}
-[class*="st-key-entrar_"] button{background:linear-gradient(95deg,var(--ac),var(--achi));border:none;
+.in-pie{font-family:'DM Sans',sans-serif;text-align:center;color:var(--tx3);font-size:.78rem;
+  margin:1.6rem 0 0;padding-top:.7rem;border-top:1px solid var(--tx3)}
+.in-pie b{color:var(--ac);font-family:'Bebas Neue',sans-serif;letter-spacing:3px;font-size:1rem;font-weight:400;margin-right:.5rem}
+[class*="st-key-entrar_"] button{width:100%;justify-content:center;margin-top:.4rem;padding-top:.85rem;padding-bottom:.85rem;background:linear-gradient(95deg,var(--ac),var(--achi));border:none;
   border-radius:999px;padding:.65rem 2.2rem;box-shadow:0 8px 26px color-mix(in srgb,var(--ac) 40%,transparent);
   transition:transform .15s,box-shadow .15s}
 [class*="st-key-entrar_"] button:hover{transform:translateY(-2px) scale(1.02)}
@@ -301,24 +301,28 @@ def estilos() -> None:
         f"--tx:{t['tx']};--tx2:{t['tx2']};--tx3:{t['tx3']};--grad:{t['grad']}}}"
     )
     logo = _logo()
+    # El selector lleva el prefijo de la barra lateral y `!important` porque el
+    # tema ya estiliza todos los botones como píldoras con fondo propio, y sin
+    # esto ese estilo gana y el logo no se ve.
+    lateral = 'section[data-testid="stSidebar"] .st-key-logo_inicio button'
     if logo:
-        # Con logo, el botón ES el logo: la imagen de fondo y la etiqueta oculta
-        # (sigue ahí para lectores de pantalla).
+        # Con logo, el botón ES el logo: imagen de fondo y etiqueta oculta (sigue
+        # ahí para lectores de pantalla).
         marca = (
-            ".st-key-logo_inicio button{background-color:transparent;border:none;"
-            f"background-image:url({logo});background-repeat:no-repeat;"
-            "background-position:center;background-size:contain;min-height:110px;"
+            f"{lateral}{{background:url(\"{logo}\") center/contain no-repeat transparent !important;"
+            "border:none !important;box-shadow:none !important;border-radius:0 !important;"
+            "height:120px !important;min-height:120px !important;width:100% !important;"
             "transition:transform .15s,filter .15s}"
-            ".st-key-logo_inicio button p{font-size:0;color:transparent}"
-            ".st-key-logo_inicio button:hover{transform:scale(1.04);filter:brightness(1.15)}"
+            f"{lateral} p{{font-size:0 !important;color:transparent !important}}"
+            f"{lateral}:hover{{transform:scale(1.04);filter:brightness(1.15)}}"
         )
     else:
         marca = (
-            ".st-key-logo_inicio button{background:transparent;border:none;"
-            "justify-content:flex-start;min-height:3rem}"
-            ".st-key-logo_inicio button p{font-family:'Bebas Neue',Impact,sans-serif;"
+            f"{lateral}{{background:transparent !important;border:none !important;"
+            "box-shadow:none !important;justify-content:flex-start;min-height:3rem}"
+            f"{lateral} p{{font-family:'Bebas Neue',Impact,sans-serif;"
             "font-size:1.9rem;letter-spacing:4px;color:var(--ac);line-height:1}"
-            ".st-key-logo_inicio button:hover p{color:var(--achi)}"
+            f"{lateral}:hover p{{color:var(--achi)}}"
         )
     st.markdown(
         f"<style>{_FUENTES}{variables}{_CSS}{marca}</style>", unsafe_allow_html=True
@@ -432,8 +436,7 @@ def _informacion() -> str:
 
 def _pie() -> str:
     return (
-        '<div class="in-pie"><b>ITC Deportes</b><br>'
-        "Sistema de gestión deportiva de la Escuela Tecnológica Instituto Técnico Central.</div>"
+        '<div class="in-pie"><b>ITC Deportes</b> Sistema de gestión deportiva de la ETITC</div>'
     )
 
 
@@ -444,12 +447,18 @@ def _boton_de_entrada(clave: str) -> None:
         type="primary",
         on_click=ir_a,
         args=("intercursos",),
+        width="stretch",
     )
 
 
 def pagina() -> None:
     """Dibuja la portada completa."""
     t = _paleta()
+    st.markdown(
+        "<style>[data-testid='stMainBlockContainer'],.stMain .block-container"
+        "{padding-bottom:1.2rem !important}</style>",
+        unsafe_allow_html=True,
+    )
     izquierda, derecha = st.columns([4, 1])
     izquierda.markdown(
         '<div class="in-nav"><b>ETITC</b> Bogotá, Colombia</div>', unsafe_allow_html=True
@@ -462,7 +471,6 @@ def pagina() -> None:
     )
 
     st.markdown(_hero(), unsafe_allow_html=True)
-    _boton_de_entrada("entrar_hero")
     st.markdown(_estadisticas(), unsafe_allow_html=True)
     st.markdown(_deportes(), unsafe_allow_html=True)
     st.markdown(_banner(), unsafe_allow_html=True)
