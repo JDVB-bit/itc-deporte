@@ -4,7 +4,8 @@ Presenta los deportes de la ETITC y lleva a los Intercursos. No decide nada del
 negocio: no llama a ningún servicio, así que no puede fallar por la base de datos
 y tampoco tiene permisos que comprobar.
 
-La navegación es una sola clave de sesión, `vista`: `"inicio"` o `"intercursos"`.
+La navegación es una sola clave de sesión, `vista`: `"inicio"`, `"intercursos"` o
+`"intercolegiados"`.
 El logo de la barra lateral y los botones de esta página solo la cambian.
 
 Imágenes: las ilustraciones de los deportes son SVG incrustado, así que no hay
@@ -32,7 +33,7 @@ from . import tema
 _CARPETAS = (Path.cwd() / "static", Path(__file__).resolve().parents[3] / "static")
 _LIMITE_BYTES = 2_000_000
 
-VISTAS = ("inicio", "intercursos")
+VISTAS = ("inicio", "intercursos", "intercolegiados")
 
 
 # ── Paleta ──────────────────────────────────────────────────────────────────
@@ -283,6 +284,12 @@ _CSS = """
   border-radius:0 12px 12px 0;padding:9px 14px;display:flex;justify-content:space-between;gap:12px;align-items:baseline}
 .in-cat b{font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;color:var(--achi);font-weight:700}
 .in-cat span{font-family:'DM Sans',sans-serif;font-size:.85rem;color:var(--tx2)}
+.in-banner.in-colegios{background:linear-gradient(240deg,color-mix(in srgb,var(--ac) 20%,var(--bg)),var(--bgc) 75%)}
+.in-deps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.in-chipdep{display:flex;align-items:center;gap:10px;background:color-mix(in srgb,var(--bg) 72%,transparent);
+  border-radius:12px;padding:8px 12px}
+.in-chipdep img{width:34px;height:34px;flex:0 0 auto}
+.in-chipdep span{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:1.1rem;color:var(--tx)}
 .in-h2{font-family:'Bebas Neue',sans-serif !important;font-weight:400;font-size:clamp(1.9rem,4.5vw,2.7rem);
   letter-spacing:3px;color:var(--tx);margin:2.2rem 0 .2rem;line-height:1}
 .in-h2 em{font-style:normal;color:var(--ac)}
@@ -436,7 +443,24 @@ def _banner() -> str:
     )
 
 
-def _deportes() -> str:
+def _banner_intercolegiados() -> str:
+    deportes = "".join(
+        f'<div class="in-chipdep">{_figura(d.figura)}<span>{d.nombre}</span></div>'
+        for d in DEPORTES
+    )
+    return (
+        '<section class="in-banner in-colegios">'
+        f"{_cancha()}"
+        '<div class="in-banner-grid"><div>'
+        f'{_titulo(2, "in-h-grande", "Intercolegiados")}'
+        "<p>Cuando la ETITC sale a competir con otros colegios. Los equipos "
+        "institucionales representan a la escuela en los cuatro deportes.</p></div>"
+        f'<div class="in-deps">{deportes}</div></div>'
+        "</section>"
+    )
+
+
+def _deportes(titulo: str = "Los deportes de la <em>ETITC</em>", resumen: str = "Cada deporte tiene su propia forma de puntuar, y la tabla de posiciones la respeta.") -> str:
     tarjetas = "".join(
         '<article class="in-dep">'
         f'{_figura(d.figura)}'
@@ -446,9 +470,8 @@ def _deportes() -> str:
         for d in DEPORTES
     )
     return (
-        f'{_titulo(2, "in-h2", "Los deportes de la <em>ETITC</em>")}'
-        '<p class="in-sub">Cada deporte tiene su propia forma de puntuar, y la tabla '
-        "de posiciones la respeta.</p>"
+        f'{_titulo(2, "in-h2", titulo)}'
+        f'<p class="in-sub">{resumen}</p>'
         f'<div class="in-deportes">{tarjetas}</div>'
     )
 
@@ -487,12 +510,8 @@ def _pie() -> str:
     )
 
 
-def pagina() -> None:
-    """Dibuja la portada completa.
-
-    El orden es el de importancia: lo primero que se ve es a dónde entrar
-    (Intercursos), y el resto es información de apoyo.
-    """
+def _cabecera() -> None:
+    """Barra superior con el tema; la comparten la portada y los Intercolegiados."""
     t = _paleta()
     st.markdown(
         "<style>[data-testid='stMainBlockContainer'],.stMain .block-container"
@@ -508,16 +527,48 @@ def pagina() -> None:
         width="stretch",
     )
 
+
+def _boton_de_entrada(clave: str, texto: str, vista: str) -> None:
+    st.button(
+        texto, key=clave, type="primary", on_click=ir_a, args=(vista,), width="stretch"
+    )
+
+
+def pagina() -> None:
+    """Dibuja la portada completa.
+
+    El orden es el de importancia: lo primero que se ve es a dónde entrar
+    (Intercursos e Intercolegiados), y el resto es información de apoyo.
+    """
+    _cabecera()
     st.markdown(_hero(), unsafe_allow_html=True)
     st.markdown(_banner(), unsafe_allow_html=True)
-    st.button(
-        "Entrar a los Intercursos",
-        key="entrar_intercursos",
-        type="primary",
-        on_click=ir_a,
-        args=("intercursos",),
-        width="stretch",
+    _boton_de_entrada("entrar_intercursos", "Entrar a los Intercursos", "intercursos")
+    st.markdown(_banner_intercolegiados(), unsafe_allow_html=True)
+    _boton_de_entrada(
+        "entrar_intercolegiados", "Entrar a los Intercolegiados", "intercolegiados"
     )
     st.markdown(_deportes(), unsafe_allow_html=True)
     st.markdown(_informacion(), unsafe_allow_html=True)
+    st.markdown(_pie(), unsafe_allow_html=True)
+
+
+def pagina_intercolegiados() -> None:
+    """La vista de los Intercolegiados.
+
+    Todavía no hay competiciones de este tipo en el sistema, así que por ahora
+    presenta el torneo y sus cuatro deportes. Cuando existan, es aquí donde se
+    listarán.
+    """
+    _cabecera()
+    st.markdown(_banner_intercolegiados(), unsafe_allow_html=True)
+    st.info("Todavía no hay competiciones de Intercolegiados publicadas.")
+    st.markdown(
+        _deportes(
+            "Los deportes <em>institucionales</em>",
+            "Los cuatro deportes con los que la ETITC representa a la institución.",
+        ),
+        unsafe_allow_html=True,
+    )
+    st.button("Volver al inicio", key="volver_inicio", on_click=ir_a, args=("inicio",))
     st.markdown(_pie(), unsafe_allow_html=True)
