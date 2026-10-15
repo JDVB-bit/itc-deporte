@@ -7,8 +7,8 @@ no arma calendarios; de eso se encarga `itc_deporte.aplicacion`.
 Sin las credenciales de Supabase no arranca, y dice cuál falta.
 
 Hay dos vistas, guardadas en `st.session_state.vista`: `"inicio"` (la portada
-con los deportes de la ETITC, lo primero que ve quien entra) e `"intercursos"`
-(la competición, con sus pestañas). El logo de la barra lateral vuelve siempre
+con los deportes de la ETITC, lo primero que ve quien entra) `"intercursos"`
+(la competición, con sus pestañas) e `"intercolegiados"`. El logo de la barra lateral vuelve siempre
 a la portada.
 """
 
@@ -194,6 +194,9 @@ def main() -> None:
     yo = actor()
     competicion = barra_lateral(yo)
 
+    if st.session_state.vista == "intercolegiados":
+        inicio.pagina_intercolegiados()
+        return
     if st.session_state.vista != "intercursos":
         inicio.pagina()
         return
