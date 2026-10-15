@@ -6,10 +6,11 @@ no arma calendarios; de eso se encarga `itc_deporte.aplicacion`.
 
 Sin las credenciales de Supabase no arranca, y dice cuál falta.
 
-Hay dos vistas, guardadas en `st.session_state.vista`: `"inicio"` (la portada
-con los deportes de la ETITC, lo primero que ve quien entra) `"intercursos"`
-(la competición, con sus pestañas) e `"intercolegiados"`. El logo de la barra lateral vuelve siempre
-a la portada.
+Hay tres tipos de vista, guardadas en `st.session_state.vista`: `"inicio"` (la
+portada con los deportes de la ETITC, lo primero que ve quien entra) y los dos
+torneos, `"intercursos"` e `"intercolegiados"`. Cada torneo muestra solo sus
+competiciones, con sus pestañas. El logo de la barra lateral vuelve siempre a la
+portada.
 """
 
 from __future__ import annotations
@@ -24,6 +25,10 @@ from itc_deporte.ui import construir, inicio, tema, vistas
 from itc_deporte.ui.composicion import ERRORES_DE_RED, SistemaSinPreparar
 
 RAIZ = Path(__file__).resolve().parent
+
+#: Las vistas que son un torneo, con su nombre en pantalla. La clave coincide con
+#: `Torneo.value`, así que cada una muestra solo las competiciones que le tocan.
+TITULOS_DE_TORNEO = {"intercursos": "Intercursos", "intercolegiados": "Intercolegiados"}
 
 st.set_page_config(
     page_title="ITC Deportes",
@@ -173,11 +178,16 @@ def barra_lateral(yo: Identidad):
                     st.session_state.token = None
                     st.rerun()
 
-        # La lista de competiciones solo tiene sentido dentro de los Intercursos.
-        if st.session_state.vista != "intercursos":
+        # La lista de competiciones solo tiene sentido dentro de un torneo, y
+        # muestra solo las de ese torneo.
+        if st.session_state.vista not in TITULOS_DE_TORNEO:
             return None
         tema.etiqueta("Competiciones")
-        competiciones = SERVICIOS.competiciones.listar()
+        competiciones = tuple(
+            c
+            for c in SERVICIOS.competiciones.listar()
+            if c.torneo.value == st.session_state.vista
+        )
         if not competiciones:
             return None
         return st.radio(
@@ -194,16 +204,15 @@ def main() -> None:
     yo = actor()
     competicion = barra_lateral(yo)
 
-    if st.session_state.vista == "intercolegiados":
-        inicio.pagina_intercolegiados()
-        return
-    if st.session_state.vista != "intercursos":
+    if st.session_state.vista not in TITULOS_DE_TORNEO:
         inicio.pagina()
         return
+    torneo = TITULOS_DE_TORNEO[st.session_state.vista]
 
     chips = tuple(
         c
         for c in (
+            torneo,
             competicion and f"{competicion.deporte.icono} {competicion.deporte.nombre}",
             competicion and competicion.temporada and f"Temporada {competicion.temporada}",
         )
@@ -217,7 +226,7 @@ def main() -> None:
     )
 
     if competicion is None:
-        st.info("Todavía no hay ninguna competición.")
+        st.info(f"Todavía no hay ninguna competición de {torneo}.")
         # El formulario va aquí y no solo en la pestaña de administrar: esa
         # pestaña vive dentro de una competición, así que sobre una base vacía
         # un administrador no tenía por dónde empezar.
