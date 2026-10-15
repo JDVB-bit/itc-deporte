@@ -17,6 +17,7 @@ nada que descargar ni enlaces que se rompan. Si existen, se usan además:
 from __future__ import annotations
 
 import base64
+import struct
 from dataclasses import asdict, dataclass, is_dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -101,6 +102,21 @@ def _portada() -> str:
     return _data_uri(str(ruta)) if ruta else ""
 
 
+@lru_cache(maxsize=1)
+def _proporcion_logo() -> str:
+    """Ancho / alto del logo, para que el botón de la barra lateral conserve su
+    forma al encoger o ampliar el menú. Se lee de la cabecera del PNG."""
+    ruta = _buscar("logo_itc-deportes.png")
+    if ruta is not None:
+        with ruta.open("rb") as f:
+            cabecera = f.read(24)
+        if cabecera[:8] == b"\x89PNG\r\n\x1a\n":
+            ancho, alto = struct.unpack(">II", cabecera[16:24])
+            if ancho and alto:
+                return f"{ancho} / {alto}"
+    return "1 / 1"
+
+
 # ── Contenido ───────────────────────────────────────────────────────────────
 # Para añadir un deporte basta con una línea aquí. `figura` elige la ilustración.
 
@@ -110,53 +126,55 @@ class DeporteDeLaEscuela:
     nombre: str
     figura: str
     resumen: str
-    datos: tuple[str, ...]
+    regla: str
 
 
 DEPORTES = (
     DeporteDeLaEscuela(
         "Microfútbol", "futbol",
         "El clásico del patio: espacios cortos, toque rápido y gol en cada jugada.",
-        ("Equipos", "Puntúa 3 / 1 / 0"),
+        "Puntúa 3 / 1 / 0",
     ),
     DeporteDeLaEscuela(
         "Baloncesto", "baloncesto",
         "Ritmo, defensa y triples. Cada posesión puede cambiar el partido.",
-        ("Equipos", "Puntúa 3 / 1 / 0"),
+        "Puntúa 3 / 1 / 0",
     ),
     DeporteDeLaEscuela(
         "Voleyball", "voleibol",
         "Se juega por sets: un 3-2 reparte puntos a los dos equipos.",
-        ("Equipos", "Puntúa por sets"),
+        "Puntúa por sets",
     ),
     DeporteDeLaEscuela(
         "Balonmano", "balonmano",
         "Velocidad, pase y potencia en una cancha que no perdona descuidos.",
-        ("Equipos", "Puntúa 3 / 1 / 0"),
+        "Puntúa 3 / 1 / 0",
     ),
 )
 
 _FIGURAS = {
     "futbol": (
         '<circle cx="32" cy="32" r="28"/>'
-        '<polygon points="32,20 43,28 39,41 25,41 21,28" fill="currentColor"/>'
-        '<path d="M32 20V5M43 28l14-5M39 41l8 12M25 41l-8 12M21 28L7 23"/>'
+        '<polygon points="32,21 42,28 38,40 26,40 22,28" fill="currentColor"/>'
+        '<path d="M32 21V4M42 28l15-6M38 40l9 13M26 40l-9 13M22 28L7 22"/>'
     ),
     "baloncesto": (
         '<circle cx="32" cy="32" r="28"/>'
-        '<path d="M4 32h56M32 4v56M11 11c11 11 11 31 0 42M53 11c-11 11-11 31 0 42"/>'
+        '<path d="M4 32h56M32 4v56"/>'
+        '<path d="M12 11c9 9 9 33 0 42M52 11c-9 9-9 33 0 42"/>'
     ),
     "voleibol": (
         '<circle cx="32" cy="32" r="28"/>'
-        '<path d="M32 4c1 14 9 23 24 27M10 14c12 3 20 10 22 18M8 44c13-5 24-3 31 10'
-        'M32 32c-4 9-4 18 0 28"/>'
+        '<g id="a"><path d="M32 4C27 18 34 31 59 38"/></g>'
+        '<use href="#a" transform="rotate(120 32 32)"/>'
+        '<use href="#a" transform="rotate(240 32 32)"/>'
     ),
     "balonmano": (
         '<circle cx="32" cy="32" r="28"/>'
-        '<path d="M32 4v56M7 22c16 7 34 7 50 0M7 42c16-7 34-7 50 0"/>'
+        '<polygon points="32,19 43,25.5 43,38.5 32,45 21,38.5 21,25.5"/>'
+        '<path d="M32 19V4M43 25.5l13-7.5M43 38.5l13 7.5M32 45v15M21 38.5L8 46M21 25.5L8 18"/>'
     ),
 }
-
 
 #: Marcas de una cancha, usadas como textura del hero y del banner.
 _MARCAS_DE_CANCHA = (
@@ -198,6 +216,16 @@ def _cancha() -> str:
     return f'<div class="in-cancha">{_svg_como_imagen(svg)}</div>'
 
 
+def _titulo(nivel: int, clase: str, texto: str) -> str:
+    """Un título como `div` con rol de encabezado.
+
+    Los `h1`/`h2`/`h3` de `st.markdown` heredan los estilos globales del tema
+    (fuente, color, enlace de ancla) y pisaban los de la portada. Un `div` con
+    `role="heading"` es igual de accesible y no los hereda.
+    """
+    return f'<div class="{clase}" role="heading" aria-level="{nivel}">{texto}</div>'
+
+
 # ── Estilos ─────────────────────────────────────────────────────────────────
 
 _FUENTES = (
@@ -207,85 +235,97 @@ _FUENTES = (
 )
 
 _CSS = """
-.in-nav{font-family:'DM Sans',sans-serif;color:var(--tx2);font-size:.9rem;padding:.55rem 0}
+.in-nav{display:flex;gap:14px;align-items:baseline;flex-wrap:wrap;font-family:'DM Sans',sans-serif;
+  color:var(--tx2);font-size:.9rem;padding:.55rem 0}
 .in-nav b{color:var(--ac);font-family:'Barlow Condensed',sans-serif;font-size:1.15rem;letter-spacing:1px}
-.in-hero{position:relative;overflow:hidden;border-radius:22px;
-  padding:clamp(28px,6vw,76px);background:var(--grad);background-size:cover;background-position:center;
-  border:1px solid color-mix(in srgb,var(--ac) 40%,transparent);
-  display:flex;align-items:center;justify-content:space-between;gap:28px;flex-wrap:wrap}
-.in-cancha{position:absolute;inset:0;color:var(--ac);opacity:.11}
+.in-nav a{color:var(--achi);text-decoration:none;border-bottom:1px solid transparent}
+.in-nav a:hover{border-bottom-color:var(--achi)}
+.in-hero{position:relative;overflow:hidden;border-radius:22px;background:var(--grad);background-size:cover;
+  background-position:center;border:1px solid color-mix(in srgb,var(--ac) 40%,transparent);
+  display:flex;flex-direction:column;min-height:clamp(380px,50vw,540px)}
+.in-cancha{position:absolute;inset:0;color:var(--ac);opacity:.11;pointer-events:none}
 .in-cancha img{width:100%;height:100%;object-fit:cover;display:block}
-.in-hero-txt{position:relative;z-index:1;flex:1 1 380px}
+.in-fila{position:relative;z-index:1;flex:1;display:flex;align-items:center;justify-content:space-between;
+  gap:28px;flex-wrap:wrap;padding:clamp(24px,5vw,64px) clamp(22px,5vw,64px) clamp(16px,3vw,28px)}
+.in-hero-txt{flex:1 1 380px}
 .in-chip{display:inline-block;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:1rem;
   letter-spacing:.5px;color:var(--achi);border:1px solid var(--ac);border-radius:999px;padding:.2rem .9rem;margin-bottom:1rem}
-.in-titulo{font-family:'Bebas Neue',Impact,sans-serif;font-size:clamp(3.6rem,13vw,9rem);line-height:.88;
-  letter-spacing:.04em;margin:0 0 .6rem;
+.in-hero .in-titulo{font-family:'Bebas Neue',Impact,sans-serif !important;font-size:clamp(3.6rem,13vw,9rem);
+  line-height:.88;letter-spacing:.04em;font-weight:400;margin:0 0 .6rem;
   background:linear-gradient(95deg,var(--ac),var(--achi));-webkit-background-clip:text;background-clip:text;
-  color:transparent;filter:drop-shadow(0 6px 24px color-mix(in srgb,var(--ac) 35%,transparent))}
+  -webkit-text-fill-color:transparent;color:transparent;
+  filter:drop-shadow(0 6px 24px color-mix(in srgb,var(--ac) 35%,transparent))}
 .in-lema{font-family:'DM Sans',sans-serif;font-size:clamp(1rem,2.2vw,1.25rem);color:var(--tx);
-  max-width:34ch;line-height:1.5;margin:0}
-.in-logo{position:relative;z-index:1;flex:0 0 auto;display:flex;align-items:center;justify-content:center}
+  max-width:34ch;line-height:1.5;margin:0;text-shadow:0 2px 10px rgba(0,0,0,.6)}
+.in-logo{flex:0 0 auto;display:flex;align-items:center;justify-content:center}
 .in-logo img{width:clamp(120px,22vw,250px);filter:drop-shadow(0 10px 30px rgba(0,0,0,.55));
   animation:in-flota 5s ease-in-out infinite}
 .in-logo img.in-bola{width:clamp(120px,20vw,220px)}
 @keyframes in-flota{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
-.in-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:18px 0 6px}
-.in-stat{background:var(--bgc);border-radius:14px;padding:16px 18px;border-bottom:3px solid var(--ac)}
-.in-stat b{display:block;font-family:'Bebas Neue',sans-serif;font-size:2.4rem;line-height:1;color:var(--achi);letter-spacing:2px}
-.in-stat span{font-family:'DM Sans',sans-serif;font-size:.85rem;color:var(--tx2)}
-.in-h2{font-family:'Bebas Neue',sans-serif;font-size:clamp(2rem,5vw,3rem);letter-spacing:3px;color:var(--tx);
-  margin:2.4rem 0 .2rem;line-height:1}
-.in-h2 em{font-style:normal;color:var(--ac)}
-.in-sub{font-family:'DM Sans',sans-serif;color:var(--tx2);margin:0 0 1rem;max-width:62ch;line-height:1.55}
-.in-deportes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
-.in-dep{position:relative;overflow:hidden;background:var(--bgc);border-radius:18px;padding:24px 22px 22px;
-  border:1px solid color-mix(in srgb,var(--tx3) 60%,transparent);transition:transform .2s,border-color .2s}
-.in-dep:hover{transform:translateY(-5px);border-color:var(--ac)}
-.in-dep img{width:100%;height:auto;display:block}
-.in-dep .in-fig{position:absolute;right:-18px;top:-18px;width:120px;color:var(--ac);opacity:.14}
-.in-dep .in-ico{width:54px;color:var(--ac);display:block;margin-bottom:14px}
-.in-dep h3{font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:2px;margin:0 0 6px;color:var(--tx)}
-.in-dep p{font-family:'DM Sans',sans-serif;font-size:.93rem;line-height:1.5;color:var(--tx2);margin:0 0 14px}
-.in-etq{display:flex;gap:6px;flex-wrap:wrap}
-.in-etq span{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:.95rem;color:var(--achi);
-  background:color-mix(in srgb,var(--ac) 14%,transparent);border-radius:8px;padding:.1rem .6rem}
-.in-banner{position:relative;overflow:hidden;border-radius:22px;padding:clamp(26px,5vw,56px);margin-top:2.2rem;
-  background:linear-gradient(120deg,color-mix(in srgb,var(--ac) 28%,var(--bg)),var(--bgc) 70%);
+.in-barra{position:relative;z-index:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));
+  margin:0 clamp(14px,3vw,34px) clamp(14px,3vw,34px);border-radius:16px;overflow:hidden;
+  background:rgba(8,8,8,.58);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.in-dato{padding:14px 16px;text-align:center;border-left:1px solid rgba(255,255,255,.15)}
+.in-dato:first-child{border-left:none}
+.in-dato b{display:block;font-family:'Bebas Neue',sans-serif;font-weight:400;font-size:2rem;line-height:1;
+  color:var(--achi);letter-spacing:2px}
+.in-dato span{font-family:'DM Sans',sans-serif;font-size:.82rem;color:#E8E8E8}
+.in-banner{position:relative;overflow:hidden;border-radius:22px;padding:clamp(24px,4vw,44px);margin-top:1.2rem;
+  background:linear-gradient(120deg,color-mix(in srgb,var(--ac) 26%,var(--bg)),var(--bgc) 75%);
   border:1px solid var(--ac)}
 .in-banner .in-cancha{opacity:.08}
-.in-banner h2{position:relative;font-family:'Bebas Neue',sans-serif;font-size:clamp(2.4rem,7vw,4.6rem);
-  letter-spacing:3px;line-height:.95;margin:0 0 .6rem;color:var(--tx)}
-.in-banner p{position:relative;font-family:'DM Sans',sans-serif;color:var(--tx);max-width:58ch;line-height:1.6;margin:0 0 1rem}
-.in-cats{position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:0 0 .4rem}
-.in-cat{background:color-mix(in srgb,var(--bg) 70%,transparent);border-left:4px solid var(--ac);
-  border-radius:0 12px 12px 0;padding:10px 14px}
-.in-cat b{font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;color:var(--achi);display:block}
+.in-banner-grid{position:relative;display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:24px;align-items:center}
+.in-banner .in-h-grande{font-family:'Bebas Neue',sans-serif !important;font-weight:400;
+  font-size:clamp(2.6rem,7vw,4.8rem);letter-spacing:3px;line-height:.95;margin:0 0 .6rem;color:var(--tx)}
+.in-banner p{font-family:'DM Sans',sans-serif;color:var(--tx);line-height:1.6;margin:0;max-width:52ch}
+.in-cats{display:grid;gap:8px}
+.in-cat{background:color-mix(in srgb,var(--bg) 72%,transparent);border-left:4px solid var(--ac);
+  border-radius:0 12px 12px 0;padding:9px 14px;display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.in-cat b{font-family:'Barlow Condensed',sans-serif;font-size:1.2rem;color:var(--achi);font-weight:700}
 .in-cat span{font-family:'DM Sans',sans-serif;font-size:.85rem;color:var(--tx2)}
-.in-info{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
-.in-bloque{background:var(--bgc);border-radius:16px;padding:22px;border-top:3px solid var(--ac)}
-.in-bloque h3{font-family:'Barlow Condensed',sans-serif;font-size:1.5rem;font-weight:700;color:var(--achi);margin:0 0 6px}
-.in-bloque p{font-family:'DM Sans',sans-serif;font-size:.93rem;line-height:1.55;color:var(--tx2);margin:0}
+.in-h2{font-family:'Bebas Neue',sans-serif !important;font-weight:400;font-size:clamp(1.9rem,4.5vw,2.7rem);
+  letter-spacing:3px;color:var(--tx);margin:2.2rem 0 .2rem;line-height:1}
+.in-h2 em{font-style:normal;color:var(--ac)}
+.in-sub{font-family:'DM Sans',sans-serif;color:var(--tx2);margin:0 0 1rem;max-width:62ch;line-height:1.55}
+.in-deportes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1px;
+  background:color-mix(in srgb,var(--tx3) 60%,transparent);
+  border:1px solid color-mix(in srgb,var(--tx3) 60%,transparent);border-radius:18px;overflow:hidden}
+.in-dep{background:var(--bgc);padding:30px 22px 24px;text-align:center;transition:background .2s}
+.in-dep:hover{background:color-mix(in srgb,var(--ac) 10%,var(--bgc))}
+.in-dep img{width:68px;height:68px;display:block;margin:0 auto 14px;transition:transform .25s}
+.in-dep:hover img{transform:translateY(-4px) rotate(-8deg)}
+.in-dep .in-nombre{font-family:'Bebas Neue',sans-serif !important;font-weight:400;font-size:1.8rem;
+  letter-spacing:2px;color:var(--tx);margin:0 0 6px;line-height:1.1}
+.in-dep p{font-family:'DM Sans',sans-serif;font-size:.9rem;line-height:1.5;color:var(--tx2);margin:0 0 14px}
+.in-regla{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:1rem;letter-spacing:.5px;
+  color:var(--achi);padding-top:10px;border-top:1px solid color-mix(in srgb,var(--tx3) 60%,transparent)}
+.in-info{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}
+.in-bloque{background:var(--bgc);border-left:3px solid var(--ac);border-radius:0 14px 14px 0;padding:18px 20px}
+.in-bloque .in-nombre-b{font-family:'Barlow Condensed',sans-serif !important;font-size:1.4rem;font-weight:700;
+  color:var(--achi);margin:0 0 4px}
+.in-bloque p{font-family:'DM Sans',sans-serif;font-size:.92rem;line-height:1.55;color:var(--tx2);margin:0}
 .in-pasos{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0;counter-reset:paso}
-.in-paso{position:relative;padding:18px 18px 18px 0;border-top:3px solid var(--tx3)}
+.in-paso{padding:16px 18px 10px 0;border-top:3px solid var(--tx3)}
 .in-paso:first-child{border-top-color:var(--ac)}
-.in-paso::before{counter-increment:paso;content:counter(paso);font-family:'Bebas Neue',sans-serif;font-size:2.6rem;
+.in-paso::before{counter-increment:paso;content:counter(paso);font-family:'Bebas Neue',sans-serif;font-size:2.4rem;
   color:var(--ac);display:block;line-height:1;margin-bottom:4px}
 .in-paso b{font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;color:var(--tx);display:block}
 .in-paso span{font-family:'DM Sans',sans-serif;font-size:.88rem;color:var(--tx2);line-height:1.5}
 .in-pie{font-family:'DM Sans',sans-serif;text-align:center;color:var(--tx3);font-size:.78rem;
-  margin:1.6rem 0 0;padding-top:.7rem;border-top:1px solid var(--tx3)}
+  margin:1.4rem 0 0;padding-top:.7rem;border-top:1px solid var(--tx3)}
 .in-pie b{color:var(--ac);font-family:'Bebas Neue',sans-serif;letter-spacing:3px;font-size:1rem;font-weight:400;margin-right:.5rem}
-[class*="st-key-entrar_"] button{width:100%;justify-content:center;margin-top:.4rem;padding-top:.85rem;padding-bottom:.85rem;background:linear-gradient(95deg,var(--ac),var(--achi));border:none;
-  border-radius:999px;padding:.65rem 2.2rem;box-shadow:0 8px 26px color-mix(in srgb,var(--ac) 40%,transparent);
-  transition:transform .15s,box-shadow .15s}
-[class*="st-key-entrar_"] button:hover{transform:translateY(-2px) scale(1.02)}
-[class*="st-key-entrar_"] button p{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1.35rem;
-  letter-spacing:1.5px;color:#0A0A0A}
+.in-pie a{color:var(--tx2)}
+[class*="st-key-entrar_"] button{width:100%;justify-content:center;min-height:4rem;margin-top:.5rem;
+  background:linear-gradient(95deg,var(--ac),var(--achi));border:none;border-radius:16px;
+  box-shadow:0 8px 28px color-mix(in srgb,var(--ac) 40%,transparent);transition:transform .15s,box-shadow .15s}
+[class*="st-key-entrar_"] button:hover{transform:translateY(-2px);box-shadow:0 12px 34px color-mix(in srgb,var(--ac) 55%,transparent)}
+[class*="st-key-entrar_"] button p{font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  font-size:clamp(1.3rem,3vw,1.7rem);letter-spacing:2px;color:#0A0A0A;text-transform:uppercase}
 .st-key-tema_inicio button{border:1px solid var(--ac);border-radius:999px;background:transparent}
 .st-key-tema_inicio button p{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:1.05rem;color:var(--ac)}
-:is(.in-dep,.in-bloque,.in-stat):focus-within{outline:2px solid var(--ac)}
-@media (max-width:640px){.in-hero{text-align:left}.in-logo{order:-1}.in-paso{padding-right:8px}}
-@media (prefers-reduced-motion:reduce){.in-logo img{animation:none}.in-dep{transition:none}}
+@media (max-width:760px){.in-banner-grid{grid-template-columns:1fr}.in-logo{order:-1}.in-dato{border-left:none}
+  .in-barra{grid-template-columns:repeat(2,1fr)}}
+@media (prefers-reduced-motion:reduce){.in-logo img{animation:none}.in-dep,.in-dep img{transition:none}}
 """
 
 
@@ -306,15 +346,17 @@ def estilos() -> None:
     # esto ese estilo gana y el logo no se ve.
     lateral = 'section[data-testid="stSidebar"] .st-key-logo_inicio button'
     if logo:
-        # Con logo, el botón ES el logo: imagen de fondo y etiqueta oculta (sigue
-        # ahí para lectores de pantalla).
+        # Con logo, el botón ES el logo. Ocupa todo el ancho del menú y su alto
+        # sale de la proporción de la imagen (`aspect-ratio`), así que crece y
+        # encoge junto con la barra lateral sin deformarse.
         marca = (
             f"{lateral}{{background:url(\"{logo}\") center/contain no-repeat transparent !important;"
             "border:none !important;box-shadow:none !important;border-radius:0 !important;"
-            "height:120px !important;min-height:120px !important;width:100% !important;"
+            "padding:0 !important;width:100% !important;height:auto !important;"
+            f"min-height:0 !important;aspect-ratio:{_proporcion_logo()};"
             "transition:transform .15s,filter .15s}"
             f"{lateral} p{{font-size:0 !important;color:transparent !important}}"
-            f"{lateral}:hover{{transform:scale(1.04);filter:brightness(1.15)}}"
+            f"{lateral}:hover{{transform:scale(1.03);filter:brightness(1.15)}}"
         )
     else:
         marca = (
@@ -331,11 +373,31 @@ def estilos() -> None:
 
 # ── Piezas de la página ─────────────────────────────────────────────────────
 
+_SITIO_OFICIAL = "https://www.etitc.edu.co/es/"
+
+
+def _nav() -> str:
+    return (
+        '<div class="in-nav"><b>ETITC</b><span>Bogotá, Colombia</span>'
+        f'<a href="{_SITIO_OFICIAL}" target="_blank" rel="noopener noreferrer">Sitio oficial</a></div>'
+    )
+
+
+def _datos() -> str:
+    datos = (
+        (str(len(DEPORTES)), "deportes"),
+        ("3", "categorías"),
+        ("6° a 11°", "cursos"),
+        ("1", "campeón por torneo"),
+    )
+    celdas = "".join(f'<div class="in-dato"><b>{n}</b><span>{d}</span></div>' for n, d in datos)
+    return f'<div class="in-barra">{celdas}</div>'
+
 
 def _hero() -> str:
     portada = _portada()
     fondo = (
-        f' style="background-image:linear-gradient(95deg,rgba(0,0,0,.82),rgba(0,0,0,.35)),url({portada})"'
+        f' style="background-image:linear-gradient(95deg,rgba(0,0,0,.82),rgba(0,0,0,.30)),url({portada})"'
         if portada
         else ""
     )
@@ -343,64 +405,51 @@ def _hero() -> str:
     imagen = f'<img src="{logo}" alt="Logo de ITC Deportes">' if logo else _figura("futbol", "in-bola")
     return (
         f'<section class="in-hero"{fondo}>'
-        f'{_cancha()}'
-        '<div class="in-hero-txt">'
+        f"{_cancha()}"
+        '<div class="in-fila"><div class="in-hero-txt">'
         '<span class="in-chip">Escuela Tecnológica Instituto Técnico Central</span>'
-        '<h1 class="in-titulo">ITC Deportes</h1>'
+        f'{_titulo(1, "in-titulo", "ITC Deportes")}'
         '<p class="in-lema">Todos los deportes de la ETITC en un solo lugar. '
         "Mira tablas, calendarios y cuadros finales sin tener que preguntar a nadie.</p>"
-        "</div>"
-        f'<div class="in-logo">{imagen}</div>'
+        f'</div><div class="in-logo">{imagen}</div></div>'
+        f"{_datos()}"
         "</section>"
-    )
-
-
-def _estadisticas() -> str:
-    datos = (
-        (str(len(DEPORTES)), "deportes en un mismo sitio"),
-        ("3", "categorías: Primera, Segunda y Tercera"),
-        ("6° a 11°", "cursos que compiten"),
-        ("1", "campeón por competición"),
-    )
-    celdas = "".join(f'<div class="in-stat"><b>{n}</b><span>{d}</span></div>' for n, d in datos)
-    return f'<div class="in-stats">{celdas}</div>'
-
-
-def _deportes() -> str:
-    tarjetas = "".join(
-        '<article class="in-dep">'
-        f'<div class="in-fig">{_figura(d.figura)}</div>'
-        f'<div class="in-ico">{_figura(d.figura)}</div>'
-        f"<h3>{d.nombre}</h3><p>{d.resumen}</p>"
-        f'<div class="in-etq">{"".join(f"<span>{x}</span>" for x in d.datos)}</div>'
-        "</article>"
-        for d in DEPORTES
-    )
-    return (
-        '<h2 class="in-h2">Los deportes de la <em>ETITC</em></h2>'
-        '<p class="in-sub">Cada deporte tiene su propia forma de puntuar, y la tabla '
-        "de posiciones la respeta.</p>"
-        f'<div class="in-deportes">{tarjetas}</div>'
     )
 
 
 def _banner() -> str:
     categorias = (
-        ("Primera", "Cursos 601 a 708"),
-        ("Segunda", "Cursos 801 a 906"),
-        ("Tercera", "Cursos 1001 a 1104"),
+        ("Primera", "601 a 708"),
+        ("Segunda", "801 a 906"),
+        ("Tercera", "1001 a 1104"),
     )
-    cats = "".join(
-        f'<div class="in-cat"><b>{n}</b><span>{d}</span></div>' for n, d in categorias
-    )
+    cats = "".join(f'<div class="in-cat"><b>{n}</b><span>Cursos {d}</span></div>' for n, d in categorias)
     return (
         '<section class="in-banner">'
-        f'{_cancha()}'
-        "<h2>Intercursos</h2>"
+        f"{_cancha()}"
+        '<div class="in-banner-grid"><div>'
+        f'{_titulo(2, "in-h-grande", "Intercursos")}'
         "<p>El torneo donde cada curso defiende sus colores. Empieza con una fase de "
-        "grupos, sigue con eliminación directa y termina con un campeón.</p>"
-        f'<div class="in-cats">{cats}</div>'
+        "grupos, sigue con eliminación directa y termina con un campeón.</p></div>"
+        f'<div class="in-cats">{cats}</div></div>'
         "</section>"
+    )
+
+
+def _deportes() -> str:
+    tarjetas = "".join(
+        '<article class="in-dep">'
+        f'{_figura(d.figura)}'
+        f'{_titulo(3, "in-nombre", d.nombre)}<p>{d.resumen}</p>'
+        f'<span class="in-regla">{d.regla}</span>'
+        "</article>"
+        for d in DEPORTES
+    )
+    return (
+        f'{_titulo(2, "in-h2", "Los deportes de la <em>ETITC</em>")}'
+        '<p class="in-sub">Cada deporte tiene su propia forma de puntuar, y la tabla '
+        "de posiciones la respeta.</p>"
+        f'<div class="in-deportes">{tarjetas}</div>'
     )
 
 
@@ -409,14 +458,12 @@ def _informacion() -> str:
         ("Consulta sin cuenta",
          "Cualquiera puede ver tablas, resultados y calendarios. No hace falta registrarse."),
         ("Sigue el cuadro final",
-         "Cuando termina la fase de grupos, los mejores clasificados pasan al cuadro y "
-         "cada ganador avanza solo a la ronda siguiente."),
+         "Los mejores de la fase de grupos pasan al cuadro, y cada ganador avanza solo a la ronda siguiente."),
         ("Registra los resultados",
-         "Los profesores y estudiantes autorizados cargan los marcadores de su competición. "
-         "Si se equivocan, pueden corregirlos."),
+         "Quienes tienen permiso cargan los marcadores de su competición y pueden corregirlos."),
     )
     tarjetas = "".join(
-        f'<div class="in-bloque"><h3>{t}</h3><p>{p}</p></div>' for t, p in bloques
+        f'<div class="in-bloque">{_titulo(3, "in-nombre-b", t)}<p>{p}</p></div>' for t, p in bloques
     )
     pasos = (
         ("Inscripción", "Cada curso inscribe a su equipo."),
@@ -424,35 +471,28 @@ def _informacion() -> str:
         ("Jornadas", "Se juegan los partidos y se anotan los marcadores."),
         ("Cuadro final", "Los mejores clasificados se enfrentan hasta quedar uno."),
     )
-    lista = "".join(f"<div class=\"in-paso\"><b>{t}</b><span>{d}</span></div>" for t, d in pasos)
+    lista = "".join(f'<div class="in-paso"><b>{t}</b><span>{d}</span></div>' for t, d in pasos)
     return (
-        '<h2 class="in-h2">Qué puedes hacer <em>aquí</em></h2>'
+        f'{_titulo(2, "in-h2", "Qué puedes hacer <em>aquí</em>")}'
         f'<div class="in-info">{tarjetas}</div>'
-        '<h2 class="in-h2">Cómo se juega un <em>torneo</em></h2>'
-        '<p class="in-sub">Así avanza una competición, de la inscripción al campeón.</p>'
+        f'{_titulo(2, "in-h2", "Cómo se juega un <em>torneo</em>")}'
         f'<div class="in-pasos">{lista}</div>'
     )
 
 
 def _pie() -> str:
     return (
-        '<div class="in-pie"><b>ITC Deportes</b> Sistema de gestión deportiva de la ETITC</div>'
-    )
-
-
-def _boton_de_entrada(clave: str) -> None:
-    st.button(
-        "Entrar a los Intercursos",
-        key=clave,
-        type="primary",
-        on_click=ir_a,
-        args=("intercursos",),
-        width="stretch",
+        '<div class="in-pie"><b>ITC Deportes</b>Sistema de gestión deportiva de la '
+        f'<a href="{_SITIO_OFICIAL}" target="_blank" rel="noopener noreferrer">ETITC</a></div>'
     )
 
 
 def pagina() -> None:
-    """Dibuja la portada completa."""
+    """Dibuja la portada completa.
+
+    El orden es el de importancia: lo primero que se ve es a dónde entrar
+    (Intercursos), y el resto es información de apoyo.
+    """
     t = _paleta()
     st.markdown(
         "<style>[data-testid='stMainBlockContainer'],.stMain .block-container"
@@ -460,9 +500,7 @@ def pagina() -> None:
         unsafe_allow_html=True,
     )
     izquierda, derecha = st.columns([4, 1])
-    izquierda.markdown(
-        '<div class="in-nav"><b>ETITC</b> Bogotá, Colombia</div>', unsafe_allow_html=True
-    )
+    izquierda.markdown(_nav(), unsafe_allow_html=True)
     derecha.button(
         f"{t['ico']} {t['lbl']}",
         key="tema_inicio",
@@ -471,9 +509,15 @@ def pagina() -> None:
     )
 
     st.markdown(_hero(), unsafe_allow_html=True)
-    st.markdown(_estadisticas(), unsafe_allow_html=True)
-    st.markdown(_deportes(), unsafe_allow_html=True)
     st.markdown(_banner(), unsafe_allow_html=True)
-    _boton_de_entrada("entrar_banner")
+    st.button(
+        "Entrar a los Intercursos",
+        key="entrar_intercursos",
+        type="primary",
+        on_click=ir_a,
+        args=("intercursos",),
+        width="stretch",
+    )
+    st.markdown(_deportes(), unsafe_allow_html=True)
     st.markdown(_informacion(), unsafe_allow_html=True)
     st.markdown(_pie(), unsafe_allow_html=True)
