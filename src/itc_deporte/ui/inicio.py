@@ -5,7 +5,7 @@ negocio: no llama a ningún servicio, así que no puede fallar por la base de da
 y tampoco tiene permisos que comprobar.
 
 La navegación es una sola clave de sesión, `vista`: `"inicio"`, `"intercursos"` o
-`"intercolegiados"`.
+`"intercolegiados"`. Las dos últimas coinciden con los valores de `Torneo`.
 El logo de la barra lateral y los botones de esta página solo la cambian.
 
 Imágenes: las ilustraciones de los deportes son SVG incrustado, así que no hay
@@ -550,25 +550,4 @@ def pagina() -> None:
     )
     st.markdown(_deportes(), unsafe_allow_html=True)
     st.markdown(_informacion(), unsafe_allow_html=True)
-    st.markdown(_pie(), unsafe_allow_html=True)
-
-
-def pagina_intercolegiados() -> None:
-    """La vista de los Intercolegiados.
-
-    Todavía no hay competiciones de este tipo en el sistema, así que por ahora
-    presenta el torneo y sus cuatro deportes. Cuando existan, es aquí donde se
-    listarán.
-    """
-    _cabecera()
-    st.markdown(_banner_intercolegiados(), unsafe_allow_html=True)
-    st.info("Todavía no hay competiciones de Intercolegiados publicadas.")
-    st.markdown(
-        _deportes(
-            "Los deportes <em>institucionales</em>",
-            "Los cuatro deportes con los que la ETITC representa a la institución.",
-        ),
-        unsafe_allow_html=True,
-    )
-    st.button("Volver al inicio", key="volver_inicio", on_click=ir_a, args=("inicio",))
     st.markdown(_pie(), unsafe_allow_html=True)
