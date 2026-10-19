@@ -24,6 +24,7 @@ from ..domain.competicion import (
     EstadoCompeticion,
     FaseDeGrupos,
     FaseEliminatoria,
+    Torneo,
 )
 from ..domain.reglas.catalogo import (
     DEPORTES,
@@ -569,6 +570,17 @@ def nueva_competicion(servicios, actor: Identidad) -> None:
     with st.form("nueva-competicion"):
         nombre = st.text_input("Nombre", placeholder="Intercursos — Microfútbol")
         temporada = st.text_input("Temporada", value=str(dt.date.today().year))
+        # Por defecto, el torneo que se está mirando: quien crea desde
+        # Intercolegiados casi seguro quiere una de Intercolegiados.
+        torneo = st.selectbox(
+            "Torneo",
+            list(Torneo),
+            index=1 if st.session_state.get("vista") == "intercolegiados" else 0,
+            format_func=lambda t: {
+                Torneo.INTERCURSOS: "Intercursos",
+                Torneo.INTERCOLEGIADOS: "Intercolegiados",
+            }[t],
+        )
 
         st.caption(
             f"Reglas de {catalogo.nombre}. Se guardan con la competición y son "
@@ -650,6 +662,7 @@ def nueva_competicion(servicios, actor: Identidad) -> None:
                     fases=tuple(fases),
                     reglas=reglas,
                     calendario=Calendario(dia_de_la_semana=int(dia), hora=hora),
+                    torneo=torneo,
                 ),
             )
 
