@@ -24,6 +24,7 @@ from ...domain.competicion import (
     FaseDeGrupos,
     FaseEliminatoria,
     ReglasDeCompeticion,
+    Torneo,
 )
 from ...domain.division import Division
 from ...domain.enfrentamiento import (
@@ -135,6 +136,7 @@ def competicion_a_fila(competicion: Competicion) -> dict[str, Any]:
         "deporte_id": competicion.deporte.id,
         "temporada": competicion.temporada,
         "estado": competicion.estado.value,
+        "torneo": competicion.torneo.value,
         "reglas": {
             **reglas_a_json(competicion.reglas),
             "calendario": calendario_a_json(competicion.calendario),
@@ -156,6 +158,7 @@ def competicion_desde_fila(
         deporte=deporte,
         temporada=fila.get("temporada"),
         estado=EstadoCompeticion(fila.get("estado") or "Borrador"),
+        torneo=Torneo(fila.get("torneo") or "intercursos"),
         fases=fases,
         reglas=reglas_desde_json(reglas_json),
         calendario=calendario_desde_json(reglas_json.get("calendario")),
