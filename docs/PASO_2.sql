@@ -37,6 +37,10 @@ create table competiciones (
     temporada  text,
     estado     text not null default 'Borrador'
                check (estado in ('Borrador', 'En curso', 'Finalizada')),
+    -- Qué torneo es: Intercursos (entre los cursos de la escuela) o
+    -- Intercolegiados (la escuela contra otros colegios).
+    torneo     text not null default 'intercursos'
+               check (torneo in ('intercursos', 'intercolegiados')),
     -- Sistema de puntuación, criterios de desempate y calendario:
     -- {"puntuacion": {...}, "desempate": [...], "calendario": {...}}.
     reglas     jsonb not null default '{}'::jsonb
