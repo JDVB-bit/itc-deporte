@@ -170,6 +170,18 @@ class EstadoCompeticion(Enum):
     FINALIZADA = "Finalizada"
 
 
+class Torneo(Enum):
+    """A qué torneo pertenece una competición.
+
+    Intercursos es entre los cursos de la escuela; Intercolegiados, la
+    escuela contra otros colegios. Los valores son los que se guardan en
+    la base y los que usa la interfaz como nombre de vista.
+    """
+
+    INTERCURSOS = "intercursos"
+    INTERCOLEGIADOS = "intercolegiados"
+
+
 @dataclass(frozen=True, slots=True)
 class ReglasDeCompeticion:
     """Cómo puntúa y cómo desempata esta competición.
@@ -222,6 +234,9 @@ class Competicion:
     fases: tuple[Fase, ...] = ()
     reglas: ReglasDeCompeticion = ReglasDeCompeticion()
     calendario: Calendario = Calendario()
+    #: Va al final y con valor por defecto para no romper a quien construye
+    #: una competición sin él: todo lo que ya existía era de Intercursos.
+    torneo: Torneo = Torneo.INTERCURSOS
 
     def __post_init__(self) -> None:
         if not self.id:
